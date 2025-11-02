@@ -56,6 +56,12 @@ print("Checking for updates...")
 local function downloadFile(url, filepath)
     local success = shell.run("wget", url, filepath .. ".tmp")
     if success then
+        -- Ensure directory exists
+        local dir = fs.getDir(filepath)
+        if dir ~= "" and not fs.exists(dir) then
+            fs.makeDir(dir)
+        end
+        
         -- Backup current file
         if fs.exists(filepath) then
             fs.move(filepath, filepath .. ".bak")

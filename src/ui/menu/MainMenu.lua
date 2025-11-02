@@ -207,27 +207,38 @@ function MainMenu.configureOpenDoor(header)
             term.setCursorPos(2, 11)
             print("Enter the color for this redstone signal:")
             term.setCursorPos(2, 12)
-            print("Valid colors: white, orange, magenta, lightBlue, yellow,")
+            print("Available colors: ")
             term.setCursorPos(2, 13)
-            print("lime, pink, gray, lightGray, cyan, purple, blue,")
-            term.setCursorPos(2, 14)
-            print("brown, green, red, black")
-            term.setCursorPos(2, 15)
+            -- Display available colors
+            local colorDisplay = table.concat(validColors, ", ")
+            if #colorDisplay > 50 then
+                print(colorDisplay:sub(1, 50))
+                term.setCursorPos(2, 14)
+                print(colorDisplay:sub(51))
+                term.setCursorPos(2, 15)
+            else
+                print(colorDisplay)
+                term.setCursorPos(2, 14)
+            end
             local input = string.lower(read())
             local validColor = false
-            for _, color in ipairs(validColors) do
+            local colorIndex = 0
+            for idx, color in ipairs(validColors) do
                 if input == color then
                     validColor = true
+                    colorIndex = idx
                     break
                 end
             end
             if validColor then
                 config.colors[i] = input
+                -- Remove this color from the valid colors list
+                table.remove(validColors, colorIndex)
                 break
             else
                 term.setCursorPos(2, 17)
                 term.setTextColor(colors.red)
-                print("Invalid color. Please enter a valid RedNet cable color.")
+                print("Invalid color. Please enter an available color.")
                 sleep(2)
             end
         end
