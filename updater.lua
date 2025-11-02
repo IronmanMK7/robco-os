@@ -1,15 +1,22 @@
 -- RobCo OS Update Script
 -- Updates existing installation from GitHub
--- Automatically discovers and updates all files in the repository
+-- Automatically discovers and dynamically updates all files in the robco_os directory
+-- Intelligently handles file moves/renames using content hashing
+-- Can be run from anywhere and will create/update robco_os directory
 
 local baseUrl = "https://raw.githubusercontent.com/IronmanMK7/robco-os/main/"
 local installDir = "robco_os"
-local version = {major = 1, minor = 0, patch = 0}
+local version = {major = 2, minor = 1, patch = 0}
 local function versionString() return version.major .. "." .. version.minor .. "." .. version.patch end
+
+-- Ensure robco_os directory exists
+if not fs.exists(installDir) then
+    fs.makeDir(installDir)
+end
 
 -- Files that should NOT be overwritten (user data)
 local preserveFiles = {
-    "src/config/settings.lua"  -- User settings and configurations
+    installDir .. "/src/config/settings.lua"  -- User settings and configurations
 }
 
 print("RobCo OS Update Script")
@@ -19,35 +26,105 @@ print("")
 -- Helper function to check if file should be preserved
 local function shouldPreserve(filepath)
     for _, preserve in ipairs(preserveFiles) do
-        if filepath == preserve or filepath == installDir .. "/" .. preserve then
+        if filepath == preserve then
             return true
         end
     end
     return false
 end
 
--- Recursively scan directory structure to get all files
-local function getFileList(url, path)
-    -- For now, we'll use a hardcoded list since GitHub API would require more complex parsing
-    -- In production, this could be expanded to actually fetch from a GitHub API endpoint
-    -- Note: installer.lua is NOT included to avoid overwriting the bootstrap script
-    local files = {
-        "src/main.lua",
-        "src/config/config.lua",
-        "src/config/settings.lua",
-        "src/puzzle/Puzzle.lua",
-        "src/puzzle/MemDumpPuzzle.lua",
-        "src/ui/Header.lua",
-        "src/ui/StatusBar.lua",
-        "src/ui/UI.lua",
-        "src/ui/menu/Menu.lua",
-        "src/ui/menu/MainMenu.lua",
-        "src/util/Admin.lua",
-        "src/util/faction/Faction.lua",
-        "updater.lua",
-        "uninstaller.lua",
-        "version.lua"
-    }
+-- Compute simple hash of file content (for moved file detection)
+local function hashFile(filepath)
+    if not fs.exists(filepath) then return nil end
+    local file = io.open(filepath, "r")
+    if not file then return nil end
+    local content = file:read("*a")
+    file:close()
+    
+    -- Simple hash: sum of byte values
+    local hash = 0
+    for i = 1, #content do
+        hash = (hash + string.byte(content, i)) % 1000000
+    end
+    return hash
+end
+
+-- Recursively scan directory to get all Lua files
+local function scanDirectory(dir)
+    local files = {}
+    local function scan(path)
+        if fs.isDir(path) then
+            for _, item in ipairs(fs.list(path)) do
+                local fullPath = fs.combine(path, item)
+                if fs.isDir(fullPath) then
+                    scan(fullPath)
+                elseif item:match("%.lua$") then
+                    table.insert(files, fullPath)
+                end
+            end
+        end
+    end
+    
+    -- Scan src/ directory within robco_os
+    local srcPath = fs.combine(installDir, "src")
+    if fs.isDir(srcPath) then
+        scan(srcPath)
+    end
+    
+    -- Also include root-level lua files in robco_os (updater.lua, uninstaller.lua, version.lua)
+    for _, file in ipairs(fs.list(installDir)) do
+        if file:match("%.lua$") and file ~= "installer.lua" then
+            table.insert(files, fs.combine(installDir, file))
+        end
+    end
+    
+    return files
+end
+
+-- Fetch file list from GitHub API to get remote structure
+local function getRemoteFileList()
+    -- Try to fetch from GitHub API (tree endpoint)
+    local success = shell.run("wget", "https://api.github.com/repos/IronmanMK7/robco-os/git/trees/main?recursive=1", ".remote_tree.json")
+    
+    local files = {}
+    if success and fs.exists(".remote_tree.json") then
+        local file = io.open(".remote_tree.json", "r")
+        if file then
+            local content = file:read("*a")
+            file:close()
+            
+            -- Parse JSON to extract file paths
+            for path in content:gmatch('"path":"([^"]+%.lua)"') do
+                if path ~= "installer.lua" then
+                    table.insert(files, path)
+                end
+            end
+            
+            fs.delete(".remote_tree.json")
+        end
+    end
+    
+    -- Fallback to known file list if API fails
+    if #files == 0 then
+        files = {
+            "src/main.lua",
+            "src/config/config.lua",
+            "src/config/settings.lua",
+            "src/puzzle/Puzzle.lua",
+            "src/puzzle/MemDumpPuzzle.lua",
+            "src/ui/Header.lua",
+            "src/ui/StatusBar.lua",
+            "src/ui/UI.lua",
+            "src/ui/menu/Menu.lua",
+            "src/ui/menu/MainMenu.lua",
+            "src/util/Admin.lua",
+            "src/util/faction/Faction.lua",
+            "updater.lua",
+            "uninstaller.lua",
+            "version.lua"
+        }
+    end
+    
     return files
 end
 
@@ -85,38 +162,93 @@ local function restoreBackup(filepath)
     end
 end
 
+-- Detect if a moved file already exists locally with matching content
+local function findMovedFile(remoteHash, excludePath)
+    local localFiles = scanDirectory(installDir)
+    for _, localFile in ipairs(localFiles) do
+        if localFile ~= excludePath and hashFile(localFile) == remoteHash then
+            return localFile
+        end
+    end
+    return nil
+end
+
 local updated = 0
 local failedFiles = {}
+local movedFiles = {}
 
--- Get list of files to update
-local files = getFileList(baseUrl, installDir)
+-- Get list of files to update from remote
+local remoteFiles = getRemoteFileList()
+print("Found " .. #remoteFiles .. " files to check")
+print("")
 
 -- Update all files
-for i, file in ipairs(files) do
-    print("Updating " .. i .. "/" .. #files .. ": " .. file)
+for i, file in ipairs(remoteFiles) do
+    print("Updating " .. i .. "/" .. #remoteFiles .. ": " .. file)
 
     -- Skip files that should be preserved
     if shouldPreserve(file) then
         print("  Skipping (user data)")
     else
-        -- Create full path within installation directory
+        -- Construct full path within robco_os directory
         local fullPath = fs.combine(installDir, file)
-        
-        -- Create directory if needed
-        local dir = fs.getDir(fullPath)
-        if dir ~= "" and not fs.exists(dir) then
-            fs.makeDir(dir)
-        end
-        
-        -- Download and update the file
+        local tmpPath = fullPath .. ".tmp"
         local fullUrl = baseUrl .. file
-        if downloadFile(fullUrl, fullPath) then
-            updated = updated + 1
-            print("  Updated!")
+        
+        local downloadSuccess = shell.run("wget", fullUrl, tmpPath)
+        if downloadSuccess then
+            local remoteHash = hashFile(tmpPath)
+            
+            -- Check if file exists locally
+            if fs.exists(fullPath) then
+                -- File exists in expected location
+                local dir = fs.getDir(fullPath)
+                if dir ~= "" and not fs.exists(dir) then
+                    fs.makeDir(dir)
+                end
+                
+                -- Backup current file
+                fs.move(fullPath, fullPath .. ".bak")
+                fs.move(tmpPath, fullPath)
+                updated = updated + 1
+                print("  Updated!")
+            else
+                -- File doesn't exist - check if it was moved
+                local movedPath = findMovedFile(remoteHash, fullPath)
+                if movedPath then
+                    -- Found the file in a different location - this is a move/rename
+                    print("  Detected file moved from: " .. movedPath)
+                    
+                    -- Create directory for new location
+                    local dir = fs.getDir(fullPath)
+                    if dir ~= "" and not fs.exists(dir) then
+                        fs.makeDir(dir)
+                    end
+                    
+                    -- Backup old file and move new one into place
+                    fs.move(movedPath, movedPath .. ".bak")
+                    fs.move(tmpPath, fullPath)
+                    table.insert(movedFiles, {old = movedPath, new = fullPath})
+                    updated = updated + 1
+                    print("  Moved to new location!")
+                else
+                    -- New file
+                    local dir = fs.getDir(fullPath)
+                    if dir ~= "" and not fs.exists(dir) then
+                        fs.makeDir(dir)
+                    end
+                    
+                    fs.move(tmpPath, fullPath)
+                    updated = updated + 1
+                    print("  Added!")
+                end
+            end
         else
-            print("  ERROR: Failed to update")
+            print("  ERROR: Failed to download")
             table.insert(failedFiles, file)
-            restoreBackup(fullPath)
+            if fs.exists(tmpPath) then
+                fs.delete(tmpPath)
+            end
         end
     end
 end
@@ -124,7 +256,7 @@ end
 -- Clean up backup files
 print("")
 print("Cleaning up old backups...")
-for _, file in ipairs(files) do
+for _, file in ipairs(remoteFiles) do
     local fullPath = fs.combine(installDir, file)
     local backup = fullPath .. ".bak"
     if fs.exists(backup) then
@@ -132,26 +264,43 @@ for _, file in ipairs(files) do
     end
 end
 
+-- Clean up old moved file backups
+for _, moved in ipairs(movedFiles) do
+    local oldBackup = moved.old .. ".bak"
+    if fs.exists(oldBackup) then
+        fs.delete(oldBackup)
+    end
+end
+
 -- Clean up the updater backup file
-if fs.exists("updater.lua.bak") then
-    fs.delete("updater.lua.bak")
+local updaterBackup = fs.combine(installDir, "updater.lua.bak")
+if fs.exists(updaterBackup) then
+    fs.delete(updaterBackup)
 end
 
 print("")
 print("=== Update Summary ===")
-print("Updated: " .. updated .. "/" .. #files .. " files")
+print("Updated/Added/Moved: " .. updated .. "/" .. #remoteFiles .. " files")
+
+if #movedFiles > 0 then
+    print("")
+    print("Files relocated:")
+    for _, moved in ipairs(movedFiles) do
+        print("  " .. moved.old .. " -> " .. moved.new)
+    end
+end
 
 if #failedFiles > 0 then
+    print("")
     print("Failed: " .. #failedFiles .. " files")
     for _, file in ipairs(failedFiles) do
         print("  - " .. file)
     end
     print("")
-    print("Backups have been restored for failed files.")
     print("Please check your internet connection and try again.")
 else
     print("")
     print("Update complete!")
     print("User settings preserved.")
-    print("Run 'robco_os/src/main.lua' to start updated RobCo OS")
+    print("Run '" .. installDir .. "/src/main.lua' to start updated RobCo OS")
 end

@@ -209,26 +209,52 @@ function MainMenu.configureOpenDoor(header)
             term.setCursorPos(2, 12)
             print("Available colors: ")
             term.setCursorPos(2, 13)
-            -- Display available colors
+            -- Display available colors with word wrapping
             local colorDisplay = table.concat(validColors, ", ")
-            if #colorDisplay > 50 then
-                print(colorDisplay:sub(1, 50))
-                term.setCursorPos(2, 14)
-                print(colorDisplay:sub(51))
-                term.setCursorPos(2, 15)
-            else
-                print(colorDisplay)
-                term.setCursorPos(2, 14)
+            local maxWidth = 48
+            local lines = {}
+            local currentLine = ""
+            
+            for word in colorDisplay:gmatch("[^,]+") do
+                word = word:match("^%s*(.-)%s*$") -- trim spaces
+                if currentLine == "" then
+                    currentLine = word
+                elseif #(currentLine .. ", " .. word) <= maxWidth then
+                    currentLine = currentLine .. ", " .. word
+                else
+                    table.insert(lines, currentLine)
+                    currentLine = word
+                end
             end
+            if currentLine ~= "" then
+                table.insert(lines, currentLine)
+            end
+            
+            for lineIdx, line in ipairs(lines) do
+                print(line)
+                if lineIdx < #lines then
+                    term.setCursorPos(2, 13 + lineIdx)
+                end
+            end
+            
+            local cursorY = 13 + #lines
+            term.setCursorPos(2, cursorY)
             local input = string.lower(read())
             local validColor = false
             local colorIndex = 0
+            
+            -- Check if input is in validColors list
             for idx, color in ipairs(validColors) do
                 if input == color then
                     validColor = true
                     colorIndex = idx
                     break
                 end
+            end
+            
+            -- Also validate that the color exists in the colors table
+            if validColor and colors[input] == nil then
+                validColor = false
             end
             if validColor then
                 config.colors[i] = input
@@ -527,7 +553,7 @@ function MainMenu.openDoor(header, params)
     MainMenu.printHeaderOnly(header)
     centerTextBlock({"Opening door...", "Sending " .. params.signalCount .. " signals on " .. string.upper(params.side) .. " side"}, colors.lime)
     
-    -- Send redstone signals
+    -- Send redstone signals using More Red bundled cable integration
     for i, color in ipairs(params.colors) do
         redstone.setBundledOutput(params.side, colors[color], true)
     end
