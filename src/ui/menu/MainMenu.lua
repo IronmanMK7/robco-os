@@ -120,7 +120,7 @@ function MainMenu.filesMenu(header, admin)
             -- Stub: open/edit file logic here
         end})
     end
-    local Menu = require("ui.Menu.Menu")
+    local Menu = require("ui.menu.Menu")
     local menu = Menu:new(fileOptions, "FILES", header, admin:isAdminUser())
     menu:handleInput()
 end
@@ -568,7 +568,7 @@ function MainMenu.createSubmenuMenu(header, statusBar, admin)
             })
         end
     end
-    local Menu = require("ui.Menu.Menu")
+    local Menu = require("ui.menu.Menu")
     local menu = Menu:new(menuOpts, "CREATE SUBMENU", header, admin:isAdminUser(), parentMenuFunc)
     menu:handleInput()
 end
@@ -592,7 +592,7 @@ function MainMenu.removeSubmenuMenu(header, statusBar, admin)
             })
         end
     end
-    local Menu = require("ui.Menu.Menu")
+    local Menu = require("ui.menu.Menu")
     local menu = Menu:new(menuOpts, "REMOVE SUBMENU", header, admin:isAdminUser(), parentMenuFunc)
     menu:handleInput()
     -- end
@@ -637,7 +637,7 @@ function MainMenu.mainMenu(header, statusBar, admin)
             table.insert(menuOpts, {label=opt.label, enabled=opt.enabled, callback=opt.callback})
         end
     end
-    local Menu = require("ui.Menu.Menu")
+    local Menu = require("ui.menu.Menu")
     local menu = Menu:new(menuOpts, "MAIN MENU", header, admin:isAdminUser())
     menu.adminActive = admin:isAdminUser()
     menu:handleInput()

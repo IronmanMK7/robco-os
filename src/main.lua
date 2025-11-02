@@ -34,7 +34,7 @@ local function main()
     while true do
         local puzzle = MemDumpPuzzle:new(header, admin)
         puzzle:run()
-        local MainMenu = require("ui.Menu.MainMenu")
+        local MainMenu = require("ui.menu.MainMenu")
         MainMenu.mainMenu(header, statusBar, admin)
     end
 end
