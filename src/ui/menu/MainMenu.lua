@@ -550,28 +550,80 @@ function MainMenu.sequenceEditor(header, availableColors, sequenceType, preloade
                 term.setCursorPos(2, 13)
                 term.setTextColor(colors.yellow)
                 print("Signal ON for 1 second...")
-                redstone.setBundledOutput("" .. side .. "", colors["" .. step.color .. ""], true)
+                redstone.setBundledOutput("" .. side .. "", colors["" .. step.color .. ""], signalState)
+                
+                -- Verify signal was set
+                sleep(0.1)
+                local currentValue = redstone.getBundledInput("" .. side .. "")
+                local isActive = bit.band(currentValue, colors["" .. step.color .. ""]) ~= 0
+                
+                term.setCursorPos(2, 14)
+                if isActive == signalState then
+                    term.setTextColor(colors.lime)
+                    print("✓ Signal verified: " .. (signalState and "ON" or "OFF"))
+                else
+                    term.setTextColor(colors.red)
+                    print("✗ Signal mismatch! Expected: " .. (signalState and "ON" or "OFF"))
+                end
+                
                 sleep(1.0)
                 redstone.setBundledOutput("" .. side .. "", colors["" .. step.color .. ""], false)
                 
-                term.setCursorPos(2, 13)
-                print("Signal OFF automatically")
+                -- Verify signal turned off
+                sleep(0.1)
+                currentValue = redstone.getBundledInput("" .. side .. "")
+                isActive = bit.band(currentValue, colors["" .. step.color .. ""]) ~= 0
+                
+                term.setCursorPos(2, 15)
+                if not isActive then
+                    term.setTextColor(colors.lime)
+                    print("✓ Signal turned OFF")
+                else
+                    term.setTextColor(colors.red)
+                    print("✗ Signal still ON!")
+                end
             else
                 -- Toggle mode: signal stays on until key press
                 term.setCursorPos(2, 13)
                 term.setTextColor(colors.yellow)
                 print("Signal ON - Press any key to turn OFF")
-                redstone.setBundledOutput("" .. side .. "", colors["" .. step.color .. ""], true)
+                redstone.setBundledOutput("" .. side .. "", colors["" .. step.color .. ""], signalState)
+                
+                -- Verify signal was set
+                sleep(0.1)
+                local currentValue = redstone.getBundledInput("" .. side .. "")
+                local isActive = bit.band(currentValue, colors["" .. step.color .. ""]) ~= 0
+                
+                term.setCursorPos(2, 14)
+                if isActive == signalState then
+                    term.setTextColor(colors.lime)
+                    print("✓ Signal verified: " .. (signalState and "ON" or "OFF"))
+                else
+                    term.setTextColor(colors.red)
+                    print("✗ Signal mismatch! Expected: " .. (signalState and "ON" or "OFF"))
+                end
+                
                 os.pullEvent("key")
                 redstone.setBundledOutput("" .. side .. "", colors["" .. step.color .. ""], false)
                 
-                term.setCursorPos(2, 13)
-                print("Signal OFF              ")
+                -- Verify signal turned off
+                sleep(0.1)
+                currentValue = redstone.getBundledInput("" .. side .. "")
+                isActive = bit.band(currentValue, colors["" .. step.color .. ""]) ~= 0
+                
+                term.setCursorPos(2, 15)
+                if not isActive then
+                    term.setTextColor(colors.lime)
+                    print("✓ Signal turned OFF")
+                else
+                    term.setTextColor(colors.red)
+                    print("✗ Signal still ON!")
+                end
             end
             
             -- Wait for inter-step delay
             if step.delay > 0 then
-                term.setCursorPos(2, 14)
+                term.setCursorPos(2, 16)
                 term.setTextColor(colors.gray)
                 print("Waiting " .. step.delay .. "s between steps...")
                 for j = 1, math.floor(step.delay * 10) do
