@@ -402,6 +402,7 @@ function MainMenu.sequenceEditor(header, availableColors, sequenceType, preloade
     local mode = "navigate" -- "navigate", "edit"
     sequenceType = sequenceType or "OPEN"
     side = side or "back"
+    local scrollOffset = 0 -- Track which step is at the top of the visible area
     
     local function drawSequenceEditor()
         term.clear()
@@ -410,33 +411,55 @@ function MainMenu.sequenceEditor(header, availableColors, sequenceType, preloade
         term.setTextColor(colors.yellow)
         print("SEQUENCE EDITOR - " .. sequenceType .. " Door")
         
-        -- Table header
-        term.setCursorPos(2, 10)
+        -- Calculate available space for table rows
+        local headerRow = 10
+        local separatorRow = 11
+        local tableStartRow = 12
+        local instructY = 20 -- Reserve space for instructions
+        local maxVisibleRows = instructY - tableStartRow
+        
+        -- Adjust scroll offset if needed
+        if selectedStep - 1 < scrollOffset then
+            scrollOffset = selectedStep - 1
+        elseif selectedStep - 1 >= scrollOffset + maxVisibleRows then
+            scrollOffset = selectedStep - maxVisibleRows
+        end
+        
+        -- Table header (fixed)
+        term.setCursorPos(2, headerRow)
         term.setTextColor(colors.white)
         print("Step | Color      | State | Delay")
-        term.setCursorPos(2, 11)
+        term.setCursorPos(2, separatorRow)
         print("-----|------------|-------|-------")
         
-        -- Sequence steps
-        for i, step in ipairs(sequence) do
-            term.setCursorPos(2, 12 + i - 1)
-            if i == selectedStep and mode == "navigate" then
-                term.setTextColor(colors.lime)
-                term.write("> ")
+        -- Sequence steps (scrollable)
+        for displayRow = 1, maxVisibleRows do
+            local stepIndex = scrollOffset + displayRow
+            local screenRow = tableStartRow + displayRow - 1
+            term.setCursorPos(2, screenRow)
+            
+            if stepIndex <= #sequence then
+                local step = sequence[stepIndex]
+                if stepIndex == selectedStep and mode == "navigate" then
+                    term.setTextColor(colors.lime)
+                    term.write("> ")
+                else
+                    term.setTextColor(colors.white)
+                    term.write("  ")
+                end
+                
+                local colorName = step.color:sub(1,1):upper() .. step.color:sub(2)
+                local stateName = step.state:upper()
+                local delayText = step.delay .. "s"
+                
+                term.write(string.format("%-2d | %-10s | %-5s | %s", stepIndex, colorName, stateName, delayText))
             else
                 term.setTextColor(colors.white)
                 term.write("  ")
             end
-            
-            local colorName = step.color:sub(1,1):upper() .. step.color:sub(2)
-            local stateName = step.state:upper()
-            local delayText = step.delay .. "s"
-            
-            term.write(string.format("%-2d | %-10s | %-5s | %s", i, colorName, stateName, delayText))
         end
         
-        -- Instructions
-        local instructY = math.max(18, 12 + #sequence + 2)
+        -- Instructions (fixed at bottom)
         term.setCursorPos(2, instructY)
         term.setTextColor(colors.cyan)
         if mode == "navigate" then
@@ -470,11 +493,18 @@ function MainMenu.sequenceEditor(header, availableColors, sequenceType, preloade
         local step = sequence[selectedStep]
         local editField = 1 -- 1=color, 2=state, 3=delay
         
+        local tableStartRow = 12
+        local instructY = 20
+        local maxVisibleRows = instructY - tableStartRow
+        
         while mode == "edit" do
             drawSequenceEditor()
             
+            -- Calculate screen row for selected step based on scroll offset
+            local screenRow = tableStartRow + (selectedStep - 1 - scrollOffset)
+            
             -- Highlight current field
-            term.setCursorPos(2, 12 + selectedStep - 1)
+            term.setCursorPos(2, screenRow)
             term.setTextColor(colors.yellow)
             local colorName = step.color:sub(1,1):upper() .. step.color:sub(2)
             local stateName = step.state:upper()
