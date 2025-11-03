@@ -407,15 +407,21 @@ function MainMenu.sequenceEditor(header, availableColors, sequenceType, preloade
     local function drawSequenceEditor()
         term.clear()
         header:draw()
-        term.setCursorPos(2, 8)
+        
+        -- Get screen dimensions
+        local screenWidth, screenHeight = term.getSize()
+        
+        -- Position title right after header
+        local titleY = (header:getHeight() or 7) + 1
+        term.setCursorPos(2, titleY)
         term.setTextColor(colors.yellow)
         print("SEQUENCE EDITOR - " .. sequenceType .. " Door")
         
         -- Calculate available space for table rows
-        local headerRow = 10
-        local separatorRow = 11
-        local tableStartRow = 12
-        local instructY = 20 -- Reserve space for instructions
+        local headerRow = titleY + 2
+        local separatorRow = headerRow + 1
+        local tableStartRow = separatorRow + 1
+        local instructY = screenHeight - 1 -- Reserve last 2 rows for instructions
         local maxVisibleRows = instructY - tableStartRow
         
         -- Adjust scroll offset if needed
@@ -493,8 +499,12 @@ function MainMenu.sequenceEditor(header, availableColors, sequenceType, preloade
         local step = sequence[selectedStep]
         local editField = 1 -- 1=color, 2=state, 3=delay
         
-        local tableStartRow = 12
-        local instructY = 20
+        local screenWidth, screenHeight = term.getSize()
+        local titleY = (header:getHeight() or 7) + 1
+        local headerRow = titleY + 2
+        local separatorRow = headerRow + 1
+        local tableStartRow = separatorRow + 1
+        local instructY = screenHeight - 1
         local maxVisibleRows = instructY - tableStartRow
         
         while mode == "edit" do
@@ -518,7 +528,7 @@ function MainMenu.sequenceEditor(header, availableColors, sequenceType, preloade
                 term.write(string.format("> %-2d | %-10s | %-5s | [%s]", selectedStep, colorName, stateName, delayText))
             end
             
-            term.setCursorPos(2, 20)
+            term.setCursorPos(2, instructY)
             term.setTextColor(colors.white)
             if editField == 1 then
                 print("Color: " .. colorName .. " (UP/DOWN to change)")
@@ -565,7 +575,7 @@ function MainMenu.sequenceEditor(header, availableColors, sequenceType, preloade
                 end
             elseif key == keys.enter and editField == 3 then
                 -- Edit delay precisely
-                term.setCursorPos(2, 21)
+                term.setCursorPos(2, instructY + 1)
                 term.setTextColor(colors.yellow)
                 term.write("Enter delay (seconds): ")
                 local input = read()
@@ -582,10 +592,19 @@ function MainMenu.sequenceEditor(header, availableColors, sequenceType, preloade
         header:draw()
         centerTextBlock({"Testing sequence...", "Press any key to continue"}, colors.yellow)
         
+        -- DEBUG: Print sequence count
+        term.setCursorPos(2, 1)
+        term.setTextColor(colors.gray)
+        print("Sequence count: " .. #sequence)
+        
         -- Send sequence
         for i, step in ipairs(sequence) do
             local signalState = (step.state == "on")
             redstone.setBundledOutput("" .. side .. "", colors["" .. step.color .. ""], signalState)
+            
+            -- DEBUG: Print step being executed
+            term.setCursorPos(2, 2)
+            print("Executing step: " .. i)
             
             -- Wait for inter-step delay
             if step.delay > 0 then
