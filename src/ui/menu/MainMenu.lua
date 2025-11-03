@@ -550,7 +550,7 @@ function MainMenu.sequenceEditor(header, availableColors, sequenceType, preloade
                 term.setCursorPos(2, 13)
                 term.setTextColor(colors.yellow)
                 print("Signal ON for 1 second...")
-                redstone.setBundledOutput("" .. side .. "", colors["" .. step.color .. ""], signalState)
+                redstone.setBundledOutput("" .. side .. "", colors["" .. step.color .. ""], true)
                 
                 -- Verify signal was set
                 sleep(0.1)
@@ -558,12 +558,12 @@ function MainMenu.sequenceEditor(header, availableColors, sequenceType, preloade
                 local isActive = bit.band(currentValue, colors["" .. step.color .. ""]) ~= 0
                 
                 term.setCursorPos(2, 14)
-                if isActive == signalState then
+                if isActive then
                     term.setTextColor(colors.lime)
-                    print("✓ Signal verified: " .. (signalState and "ON" or "OFF"))
+                    print("✓ Signal verified: ON")
                 else
                     term.setTextColor(colors.red)
-                    print("✗ Signal mismatch! Expected: " .. (signalState and "ON" or "OFF"))
+                    print("✗ Signal mismatch! Expected: ON")
                 end
                 
                 sleep(1.0)
@@ -583,10 +583,11 @@ function MainMenu.sequenceEditor(header, availableColors, sequenceType, preloade
                     print("✗ Signal still ON!")
                 end
             else
-                -- Toggle mode: signal stays on until key press
+                -- Toggle mode: signal stays on/off based on step.state until key press
                 term.setCursorPos(2, 13)
                 term.setTextColor(colors.yellow)
-                print("Signal ON - Press any key to turn OFF")
+                local actionText = (signalState) and "ON" or "OFF"
+                print("Signal " .. actionText .. " - Press any key to toggle")
                 redstone.setBundledOutput("" .. side .. "", colors["" .. step.color .. ""], signalState)
                 
                 -- Verify signal was set
@@ -597,10 +598,10 @@ function MainMenu.sequenceEditor(header, availableColors, sequenceType, preloade
                 term.setCursorPos(2, 14)
                 if isActive == signalState then
                     term.setTextColor(colors.lime)
-                    print("✓ Signal verified: " .. (signalState and "ON" or "OFF"))
+                    print("✓ Signal verified: " .. actionText)
                 else
                     term.setTextColor(colors.red)
-                    print("✗ Signal mismatch! Expected: " .. (signalState and "ON" or "OFF"))
+                    print("✗ Signal mismatch! Expected: " .. actionText)
                 end
                 
                 os.pullEvent("key")
@@ -695,8 +696,9 @@ function MainMenu.openDoor(header, params)
             sleep(1.0)
             redstone.setBundledOutput("" .. params.side .. "", colors["" .. colorName .. ""], false)
         else
-            -- Toggle mode: send signal on
-            redstone.setBundledOutput("" .. params.side .. "", colors["" .. colorName .. ""], true)
+            -- Toggle mode: send signal based on step.state
+            local signalState = (step.state == "on")
+            redstone.setBundledOutput("" .. params.side .. "", colors["" .. colorName .. ""], signalState)
         end
         -- Wait for inter-step delay
         if step.delay > 0 then
@@ -734,8 +736,9 @@ function MainMenu.openDoor(header, params)
             sleep(1.0)
             redstone.setBundledOutput("" .. params.side .. "", colors["" .. colorName .. ""], false)
         else
-            -- Toggle mode: send signal on
-            redstone.setBundledOutput("" .. params.side .. "", colors["" .. colorName .. ""], true)
+            -- Toggle mode: send signal based on step.state
+            local signalState = (step.state == "on")
+            redstone.setBundledOutput("" .. params.side .. "", colors["" .. colorName .. ""], signalState)
         end
         -- Wait for inter-step delay
         if step.delay > 0 then
