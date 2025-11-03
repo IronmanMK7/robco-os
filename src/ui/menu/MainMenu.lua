@@ -550,61 +550,15 @@ function MainMenu.sequenceEditor(header, availableColors, sequenceType, preloade
     local function testSequence()
         term.clear()
         header:draw()
-        centerTextBlock({"Testing sequence...", "Press any key to stop"}, colors.yellow)
+        centerTextBlock({"Testing sequence...", "Press any key to continue"}, colors.yellow)
         
+        -- Send sequence
         for i, step in ipairs(sequence) do
-            term.setCursorPos(2, 12)
-            term.setTextColor(colors.lime)
-            print("Step " .. i .. ": " .. step.color:upper() .. " " .. step.state:upper())
-            
             local signalState = (step.state == "on")
-            
-            -- Send signal based on step.state
-            term.setCursorPos(2, 13)
-            term.setTextColor(colors.yellow)
-            local actionText = (signalState) and "ON" or "OFF"
-            print("Signal " .. actionText .. " - Press any key to toggle")
             redstone.setBundledOutput("" .. side .. "", colors["" .. step.color .. ""], signalState)
-            
-            -- Verify signal was set
-            sleep(0.1)
-            local currentValue = redstone.getBundledInput("" .. side .. "")
-            local isActive = bit.band(currentValue, colors["" .. step.color .. ""]) ~= 0
-            
-            term.setCursorPos(2, 14)
-            if isActive == signalState then
-                term.setTextColor(colors.lime)
-                print("✓ Signal verified: " .. actionText)
-            else
-                term.setTextColor(colors.red)
-                print("✗ Signal mismatch! Expected: " .. actionText)
-            end
-            
-            term.setCursorPos(2, 15)
-            term.setTextColor(colors.gray)
-            print("Waiting for key press...")
-            os.pullEvent("key")
-            redstone.setBundledOutput("" .. side .. "", colors["" .. step.color .. ""], false)
-            
-            -- Verify signal turned off
-            sleep(0.1)
-            currentValue = redstone.getBundledInput("" .. side .. "")
-            isActive = bit.band(currentValue, colors["" .. step.color .. ""]) ~= 0
-            
-            term.setCursorPos(2, 16)
-            if not isActive then
-                term.setTextColor(colors.lime)
-                print("✓ Signal turned OFF")
-            else
-                term.setTextColor(colors.red)
-                print("✗ Signal still ON!")
-            end
             
             -- Wait for inter-step delay
             if step.delay > 0 then
-                term.setCursorPos(2, 17)
-                term.setTextColor(colors.gray)
-                print("Waiting " .. step.delay .. "s between steps...")
                 sleep(step.delay)
             end
         end
