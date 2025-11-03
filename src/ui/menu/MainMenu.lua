@@ -146,17 +146,43 @@ function MainMenu.configureOpenDoor(header)
         print("OPEN DOOR CONFIGURATION")
         term.setCursorPos(2, 10)
         term.setTextColor(colors.green)
-        print("How many redstone signals are required to operate the door?")
-        term.setCursorPos(2, 11)
+        local question = "How many redstone signals are required to operate the door?"
+        local maxWidth = term.getSize() - 3 -- Leave margin
+        local lines = {}
+        local currentLine = ""
+        
+        for word in question:gmatch("%S+") do
+            if currentLine == "" then
+            currentLine = word
+            elseif #(currentLine .. " " .. word) <= maxWidth then
+            currentLine = currentLine .. " " .. word
+            else
+            table.insert(lines, currentLine)
+            currentLine = word
+            end
+        end
+        if currentLine ~= "" then
+            table.insert(lines, currentLine)
+        end
+        
+        for lineIdx, line in ipairs(lines) do
+            print(line)
+            if lineIdx < #lines then
+            term.setCursorPos(2, 10 + lineIdx)
+            end
+        end
+        
+        -- Adjust cursor position for input based on number of wrapped lines
+        term.setCursorPos(2, 10 + #lines)
         print("Enter a number between 1 and 16:")
-        term.setCursorPos(2, 12)
+        term.setCursorPos(2, 10 + #lines + 1)
         local input = read()
         local num = tonumber(input)
         if num and num >= 1 and num <= 16 and math.floor(num) == num then
             config.signalCount = num
             break
         else
-            term.setCursorPos(2, 14)
+            term.setCursorPos(2, 10 + #lines + 3)
             term.setTextColor(colors.red)
             print("Invalid input. Please enter a whole number between 1 and 16.")
             sleep(2)
