@@ -179,7 +179,7 @@ function MainMenu.configureOpenDoor(header)
         print("Valid options: ")
         
         -- Display valid sides with word wrapping
-        local sideDisplay = "TOP, BOTTOM, LEFT, RIGHT, BACK, FRONT"
+        local sideDisplay = "top, bottom, left, right, back, front"
         local maxWidth = 48
         local lines = {}
         local currentLine = ""
@@ -206,10 +206,10 @@ function MainMenu.configureOpenDoor(header)
             end
         end
         
-        local cursorY = 12 + #lines
+        local cursorY = 12 + #lines + 1
         term.setCursorPos(2, cursorY)
         local input = string.upper(read())
-        if input == "TOP" or input == "BOTTOM" or input == "LEFT" or input == "RIGHT" or input == "BACK" or input == "FRONT" then
+        if input == "top" or input == "bottom" or input == "left" or input == "right" or input == "back" or input == "front" then
             config.side = string.lower(input)
             break
         else
