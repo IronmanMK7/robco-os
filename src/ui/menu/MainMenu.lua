@@ -174,16 +174,46 @@ function MainMenu.configureOpenDoor(header)
         term.setTextColor(colors.green)
         print("Which side of the computer should output signals?")
         term.setCursorPos(2, 11)
-        print("Valid options: TOP, BOTTOM, LEFT, RIGHT, BACK, FRONT")
-        term.setCursorPos(2, 12)
         print("Hint: Use the side connected to your bundled cable")
-        term.setCursorPos(2, 13)
+        term.setCursorPos(2, 12)
+        print("Valid options: ")
+        
+        -- Display valid sides with word wrapping
+        local sideDisplay = "TOP, BOTTOM, LEFT, RIGHT, BACK, FRONT"
+        local maxWidth = 48
+        local lines = {}
+        local currentLine = ""
+        
+        for word in sideDisplay:gmatch("[^,]+") do
+            word = word:match("^%s*(.-)%s*$") -- trim spaces
+            if currentLine == "" then
+                currentLine = word
+            elseif #(currentLine .. ", " .. word) <= maxWidth then
+                currentLine = currentLine .. ", " .. word
+            else
+                table.insert(lines, currentLine)
+                currentLine = word
+            end
+        end
+        if currentLine ~= "" then
+            table.insert(lines, currentLine)
+        end
+        
+        for lineIdx, line in ipairs(lines) do
+            print(line)
+            if lineIdx < #lines then
+                term.setCursorPos(2, 12 + lineIdx)
+            end
+        end
+        
+        local cursorY = 12 + #lines
+        term.setCursorPos(2, cursorY)
         local input = string.upper(read())
         if input == "TOP" or input == "BOTTOM" or input == "LEFT" or input == "RIGHT" or input == "BACK" or input == "FRONT" then
             config.side = string.lower(input)
             break
         else
-            term.setCursorPos(2, 15)
+            term.setCursorPos(2, cursorY + 2)
             term.setTextColor(colors.red)
             print("Invalid input. Please enter one of the valid sides.")
             sleep(2)
