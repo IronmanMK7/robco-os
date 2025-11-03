@@ -208,7 +208,7 @@ function MainMenu.configureOpenDoor(header)
         
         local cursorY = 12 + #lines + 1
         term.setCursorPos(2, cursorY)
-        local input = string.upper(read())
+        local input = string.lower(read())
         if input == "top" or input == "bottom" or input == "left" or input == "right" or input == "back" or input == "front" then
             config.side = string.lower(input)
             break
