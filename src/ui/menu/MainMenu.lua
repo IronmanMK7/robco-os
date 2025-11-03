@@ -301,15 +301,15 @@ function MainMenu.configureOpenDoor(header)
     end
     
     -- Question 4: Sequence Editor
-    config.sequence = MainMenu.sequenceEditor(header, config.colors, "OPEN")
+    config.sequence = MainMenu.sequenceEditor(header, config.colors, "OPEN", nil, config.side)
     
     -- Question 5: Close Door Configuration
-    config.closeSequence = MainMenu.configureCloseDoor(header, config.colors, config.sequence)
+    config.closeSequence = MainMenu.configureCloseDoor(header, config.colors, config.sequence, config.side)
     
     return config
 end
 
-function MainMenu.configureCloseDoor(header, availableColors, openSequence)
+function MainMenu.configureCloseDoor(header, availableColors, openSequence, side)
     term.clear()
     header:draw()
     
@@ -338,8 +338,7 @@ function MainMenu.configureCloseDoor(header, availableColors, openSequence)
                     color = step.color,
                     state = (step.state == "on") and "off" or "on", -- Flip state
                     delay = step.delay,
-                    pulseMode = step.pulseMode,
-                    pulseDuration = step.pulseDuration
+                    isPulse = step.isPulse
                 })
             end
             return closeSequence
@@ -352,8 +351,7 @@ function MainMenu.configureCloseDoor(header, availableColors, openSequence)
                     color = step.color,
                     state = (step.state == "on") and "off" or "on", -- Flip state
                     delay = step.delay,
-                    pulseMode = step.pulseMode,
-                    pulseDuration = step.pulseDuration
+                    isPulse = step.isPulse
                 })
             end
             
@@ -369,16 +367,17 @@ function MainMenu.configureCloseDoor(header, availableColors, openSequence)
             }, colors.yellow)
             os.pullEvent("key")
             
-            return MainMenu.sequenceEditor(header, availableColors, "CLOSE", preloadedSequence)
+            return MainMenu.sequenceEditor(header, availableColors, "CLOSE", preloadedSequence, side)
         end
     end
 end
 
-function MainMenu.sequenceEditor(header, availableColors, sequenceType, preloadedSequence)
+function MainMenu.sequenceEditor(header, availableColors, sequenceType, preloadedSequence, side)
     local sequence = preloadedSequence or {}
     local selectedStep = math.max(1, #sequence)
     local mode = "navigate" -- "navigate", "edit"
     sequenceType = sequenceType or "OPEN"
+    side = side or "back"
     
     local function drawSequenceEditor()
         term.clear()
@@ -541,17 +540,56 @@ function MainMenu.sequenceEditor(header, availableColors, sequenceType, preloade
         for i, step in ipairs(sequence) do
             term.setCursorPos(2, 12)
             term.setTextColor(colors.lime)
-            print("Step " .. i .. ": " .. step.color:upper() .. " " .. step.state:upper())
+            local modeText = (step.isPulse) and "PULSE (1s)" or "TOGGLE"
+            print("Step " .. i .. ": " .. step.color:upper() .. " " .. step.state:upper() .. " [" .. modeText .. "]")
             
-            -- Here you would actually send the redstone signal
-            -- redstone.setBundledOutput(side, colors[step.color], step.state == "on")
+            local signalState = (step.state == "on")
             
+            if step.isPulse then
+                -- Pulse mode: signal for 1 second then off
+                term.setCursorPos(2, 13)
+                term.setTextColor(colors.yellow)
+                print("Signal ON for 1 second...")
+                redstone.setBundledOutput("" .. side .. "", colors["" .. step.color .. ""], true)
+                sleep(1.0)
+                redstone.setBundledOutput("" .. side .. "", colors["" .. step.color .. ""], false)
+                
+                term.setCursorPos(2, 13)
+                print("Signal OFF automatically")
+            else
+                -- Toggle mode: signal stays on until key press
+                term.setCursorPos(2, 13)
+                term.setTextColor(colors.yellow)
+                print("Signal ON - Press any key to turn OFF")
+                redstone.setBundledOutput("" .. side .. "", colors["" .. step.color .. ""], true)
+                os.pullEvent("key")
+                redstone.setBundledOutput("" .. side .. "", colors["" .. step.color .. ""], false)
+                
+                term.setCursorPos(2, 13)
+                print("Signal OFF              ")
+            end
+            
+            -- Wait for inter-step delay
             if step.delay > 0 then
+                term.setCursorPos(2, 14)
+                term.setTextColor(colors.gray)
+                print("Waiting " .. step.delay .. "s between steps...")
                 for j = 1, math.floor(step.delay * 10) do
-                    if os.pullEvent("key") then return end
+                    if os.pullEvent("key") then 
+                        -- Turn off all signals before exiting
+                        for _, s in ipairs(sequence) do
+                            redstone.setBundledOutput("" .. side .. "", colors["" .. s.color .. ""], false)
+                        end
+                        return 
+                    end
                     sleep(0.1)
                 end
             end
+        end
+        
+        -- Turn off all signals
+        for _, s in ipairs(sequence) do
+            redstone.setBundledOutput("" .. side .. "", colors["" .. s.color .. ""], false)
         end
         
         centerTextBlock({"Test complete!", "Press any key to continue"}, colors.green)
