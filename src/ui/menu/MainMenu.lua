@@ -337,7 +337,9 @@ function MainMenu.configureCloseDoor(header, availableColors, openSequence)
                 table.insert(closeSequence, {
                     color = step.color,
                     state = (step.state == "on") and "off" or "on", -- Flip state
-                    delay = step.delay
+                    delay = step.delay,
+                    pulseMode = step.pulseMode,
+                    pulseDuration = step.pulseDuration
                 })
             end
             return closeSequence
@@ -349,7 +351,9 @@ function MainMenu.configureCloseDoor(header, availableColors, openSequence)
                 table.insert(preloadedSequence, {
                     color = step.color,
                     state = (step.state == "on") and "off" or "on", -- Flip state
-                    delay = step.delay
+                    delay = step.delay,
+                    pulseMode = step.pulseMode,
+                    pulseDuration = step.pulseDuration
                 })
             end
             
@@ -386,9 +390,9 @@ function MainMenu.sequenceEditor(header, availableColors, sequenceType, preloade
         -- Table header
         term.setCursorPos(2, 10)
         term.setTextColor(colors.white)
-        print("Step | Color      | State | Delay")
+        print("Step | Color      | State | Delay | Mode")
         term.setCursorPos(2, 11)
-        print("-----|------------|-------|------")
+        print("-----|------------|-------|-------|------")
         
         -- Sequence steps
         for i, step in ipairs(sequence) do
@@ -404,8 +408,9 @@ function MainMenu.sequenceEditor(header, availableColors, sequenceType, preloade
             local colorName = step.color:sub(1,1):upper() .. step.color:sub(2)
             local stateName = step.state:upper()
             local delayText = step.delay .. "s"
+            local modeText = (step.isPulse) and "pls" or "tog"
             
-            term.write(string.format("%-2d | %-10s | %-5s | %s", i, colorName, stateName, delayText))
+            term.write(string.format("%-2d | %-10s | %-5s | %s | %s", i, colorName, stateName, delayText, modeText))
         end
         
         -- Instructions
@@ -424,7 +429,7 @@ function MainMenu.sequenceEditor(header, availableColors, sequenceType, preloade
     end
     
     local function addStep()
-        table.insert(sequence, {color = availableColors[1], state = "on", delay = 0})
+        table.insert(sequence, {color = availableColors[1], state = "on", delay = 0, isPulse = false})
         selectedStep = #sequence
     end
     
@@ -441,7 +446,7 @@ function MainMenu.sequenceEditor(header, availableColors, sequenceType, preloade
         if #sequence == 0 then return end
         mode = "edit"
         local step = sequence[selectedStep]
-        local editField = 1 -- 1=color, 2=state, 3=delay
+        local editField = 1 -- 1=color, 2=state, 3=delay, 4=mode
         
         while mode == "edit" do
             drawSequenceEditor()
@@ -452,13 +457,16 @@ function MainMenu.sequenceEditor(header, availableColors, sequenceType, preloade
             local colorName = step.color:sub(1,1):upper() .. step.color:sub(2)
             local stateName = step.state:upper()
             local delayText = step.delay .. "s"
+            local modeText = (step.isPulse) and "pls" or "tog"
             
             if editField == 1 then
-                term.write(string.format("> %-2d | [%-10s] | %-5s | %s", selectedStep, colorName, stateName, delayText))
+                term.write(string.format("> %-2d | [%-10s] | %-5s | %s | %s", selectedStep, colorName, stateName, delayText, modeText))
             elseif editField == 2 then
-                term.write(string.format("> %-2d | %-10s | [%-5s] | %s", selectedStep, colorName, stateName, delayText))
+                term.write(string.format("> %-2d | %-10s | [%-5s] | %s | %s", selectedStep, colorName, stateName, delayText, modeText))
+            elseif editField == 3 then
+                term.write(string.format("> %-2d | %-10s | %-5s | [%s] | %s", selectedStep, colorName, stateName, delayText, modeText))
             else
-                term.write(string.format("> %-2d | %-10s | %-5s | [%s]", selectedStep, colorName, stateName, delayText))
+                term.write(string.format("> %-2d | %-10s | %-5s | %s | [%s]", selectedStep, colorName, stateName, delayText, modeText))
             end
             
             term.setCursorPos(2, 20)
@@ -467,8 +475,10 @@ function MainMenu.sequenceEditor(header, availableColors, sequenceType, preloade
                 print("Color: " .. colorName .. " (UP/DOWN to change)")
             elseif editField == 2 then
                 print("State: " .. stateName .. " (UP/DOWN to toggle)")
-            else
+            elseif editField == 3 then
                 print("Delay: " .. delayText .. " (UP/DOWN to adjust, ENTER to edit)")
+            else
+                print("Mode: " .. modeText .. " (UP/DOWN to toggle pulse/toggle)")
             end
             
             local event, key = os.pullEvent("key")
@@ -477,7 +487,7 @@ function MainMenu.sequenceEditor(header, availableColors, sequenceType, preloade
                 break
             elseif key == keys.left and editField > 1 then
                 editField = editField - 1
-            elseif key == keys.right and editField < 3 then
+            elseif key == keys.right and editField < 4 then
                 editField = editField + 1
             elseif key == keys.up or key == keys.down then
                 if editField == 1 then
@@ -505,9 +515,12 @@ function MainMenu.sequenceEditor(header, availableColors, sequenceType, preloade
                     else
                         step.delay = math.max(0, step.delay - increment)
                     end
+                elseif editField == 4 then
+                    -- Toggle pulse mode
+                    step.isPulse = not step.isPulse
                 end
             elseif key == keys.enter and editField == 3 then
-                -- Edit delay
+                -- Edit delay precisely
                 term.setCursorPos(2, 21)
                 term.setTextColor(colors.yellow)
                 term.write("Enter delay (seconds): ")
@@ -583,18 +596,61 @@ function MainMenu.openDoor(header, params)
     MainMenu.printHeaderOnly(header)
     centerTextBlock({"Opening door...", "Sending " .. params.signalCount .. " signals on " .. string.upper(params.side) .. " side"}, colors.lime)
     
-    -- Send redstone signals using More Red bundled cable integration
-    for i, color in ipairs(params.colors) do
-        redstone.setBundledOutput(params.side, colors[color], true)
+    -- Send open sequence
+    for i, step in ipairs(params.sequence) do
+        local colorName = step.color
+        if step.isPulse then
+            -- Pulse mode: send signal for 1 second then turn off
+            redstone.setBundledOutput("" .. params.side .. "", colors["" .. colorName .. ""], true)
+            sleep(1.0)
+            redstone.setBundledOutput("" .. params.side .. "", colors["" .. colorName .. ""], false)
+        else
+            -- Toggle mode: send signal on
+            redstone.setBundledOutput("" .. params.side .. "", colors["" .. colorName .. ""], true)
+        end
+        -- Wait for inter-step delay
+        if step.delay > 0 then
+            sleep(step.delay)
+        end
     end
     
-    sleep(2)
-    centerTextBlock({"Door opened!", "Press any key to close door..."}, colors.green)
-    os.pullEvent("key")
+    -- If not in pulse mode, wait for user input to turn off signals
+    local inToggleMode = false
+    for i, step in ipairs(params.sequence) do
+        if not step.isPulse then
+            inToggleMode = true
+            break
+        end
+    end
     
-    -- Turn off redstone signals
-    for i, color in ipairs(params.colors) do
-        redstone.setBundledOutput(params.side, colors[color], false)
+    if inToggleMode then
+        centerTextBlock({"Door opened!", "Press any key to close door..."}, colors.green)
+        os.pullEvent("key")
+        
+        -- Turn off all signals
+        for i, step in ipairs(params.sequence) do
+            if not step.isPulse then
+                redstone.setBundledOutput("" .. params.side .. "", colors["" .. step.color .. ""], false)
+            end
+        end
+    end
+    
+    -- Execute close sequence
+    for i, step in ipairs(params.closeSequence) do
+        local colorName = step.color
+        if step.isPulse then
+            -- Pulse mode: send signal for 1 second then turn off
+            redstone.setBundledOutput("" .. params.side .. "", colors["" .. colorName .. ""], true)
+            sleep(1.0)
+            redstone.setBundledOutput("" .. params.side .. "", colors["" .. colorName .. ""], false)
+        else
+            -- Toggle mode: send signal on
+            redstone.setBundledOutput("" .. params.side .. "", colors["" .. colorName .. ""], true)
+        end
+        -- Wait for inter-step delay
+        if step.delay > 0 then
+            sleep(step.delay)
+        end
     end
     
     centerTextBlock({"Door closed!"}, colors.green)
