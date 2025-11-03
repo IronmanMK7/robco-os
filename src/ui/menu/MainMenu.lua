@@ -566,7 +566,14 @@ function MainMenu.sequenceEditor(header, availableColors, sequenceType, preloade
                     print("✗ Signal mismatch! Expected: ON")
                 end
                 
+                term.setCursorPos(2, 15)
+                term.setTextColor(colors.gray)
+                print("Waiting 1 second...")
                 sleep(1.0)
+                
+                term.setCursorPos(2, 15)
+                term.setTextColor(colors.gray)
+                print("Turning OFF...")
                 redstone.setBundledOutput("" .. side .. "", colors["" .. step.color .. ""], false)
                 
                 -- Verify signal turned off
@@ -574,7 +581,7 @@ function MainMenu.sequenceEditor(header, availableColors, sequenceType, preloade
                 currentValue = redstone.getBundledInput("" .. side .. "")
                 isActive = bit.band(currentValue, colors["" .. step.color .. ""]) ~= 0
                 
-                term.setCursorPos(2, 15)
+                term.setCursorPos(2, 16)
                 if not isActive then
                     term.setTextColor(colors.lime)
                     print("✓ Signal turned OFF")
@@ -604,6 +611,9 @@ function MainMenu.sequenceEditor(header, availableColors, sequenceType, preloade
                     print("✗ Signal mismatch! Expected: " .. actionText)
                 end
                 
+                term.setCursorPos(2, 15)
+                term.setTextColor(colors.gray)
+                print("Waiting for key press...")
                 os.pullEvent("key")
                 redstone.setBundledOutput("" .. side .. "", colors["" .. step.color .. ""], false)
                 
@@ -612,7 +622,7 @@ function MainMenu.sequenceEditor(header, availableColors, sequenceType, preloade
                 currentValue = redstone.getBundledInput("" .. side .. "")
                 isActive = bit.band(currentValue, colors["" .. step.color .. ""]) ~= 0
                 
-                term.setCursorPos(2, 15)
+                term.setCursorPos(2, 16)
                 if not isActive then
                     term.setTextColor(colors.lime)
                     print("✓ Signal turned OFF")
@@ -627,16 +637,7 @@ function MainMenu.sequenceEditor(header, availableColors, sequenceType, preloade
                 term.setCursorPos(2, 16)
                 term.setTextColor(colors.gray)
                 print("Waiting " .. step.delay .. "s between steps...")
-                for j = 1, math.floor(step.delay * 10) do
-                    if os.pullEvent("key") then 
-                        -- Turn off all signals before exiting
-                        for _, s in ipairs(sequence) do
-                            redstone.setBundledOutput("" .. side .. "", colors["" .. s.color .. ""], false)
-                        end
-                        return 
-                    end
-                    sleep(0.1)
-                end
+                sleep(step.delay)
             end
         end
         
