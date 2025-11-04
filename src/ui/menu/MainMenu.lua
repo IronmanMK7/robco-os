@@ -599,12 +599,23 @@ function MainMenu.sequenceEditor(header, availableColors, sequenceType, preloade
         
         -- Send sequence
         for i, step in ipairs(sequence) do
-            local signalState = (step.state == "on")
-            redstone.setBundledOutput("" .. side .. "", colors["" .. step.color .. ""], signalState)
-            
             -- DEBUG: Print step being executed
             term.setCursorPos(2, 2)
             print("Executing step: " .. i)
+            
+            -- Get current bundled output state
+            local currentState = redstone.getBundledOutput("" .. side .. "")
+            local colorValue = colors["" .. step.color .. ""]
+            
+            -- Combine or subtract the signal based on state
+            if step.state == "on" then
+                currentState = colors.combine(currentState, colorValue)
+            else
+                currentState = colors.subtract(currentState, colorValue)
+            end
+            
+            -- Apply the new state
+            redstone.setBundledOutput("" .. side .. "", currentState)
             
             -- Wait for inter-step delay
             if step.delay > 0 then
@@ -613,9 +624,7 @@ function MainMenu.sequenceEditor(header, availableColors, sequenceType, preloade
         end
         
         -- Turn off all signals
-        for _, s in ipairs(sequence) do
-            redstone.setBundledOutput("" .. side .. "", colors["" .. s.color .. ""], false)
-        end
+        redstone.setBundledOutput("" .. side .. "", 0)   
         
         centerTextBlock({"Test complete!", "Press any key to continue"}, colors.green)
         os.pullEvent("key")
@@ -662,8 +671,20 @@ function MainMenu.openDoor(header, params)
     -- Send open sequence
     for i, step in ipairs(params.sequence) do
         local colorName = step.color
-        local signalState = (step.state == "on")
-        redstone.setBundledOutput("" .. params.side .. "", colors["" .. colorName .. ""], signalState)
+        local colorValue = colors["" .. colorName .. ""]
+        
+        -- Get current bundled output state
+        local currentState = redstone.getBundledOutput("" .. params.side .. "")
+        
+        -- Combine or subtract the signal based on state
+        if step.state == "on" then
+            currentState = colors.combine(currentState, colorValue)
+        else
+            currentState = colors.subtract(currentState, colorValue)
+        end
+        
+        -- Apply the new state
+        redstone.setBundledOutput("" .. params.side .. "", currentState)
         
         -- Wait for inter-step delay
         if step.delay > 0 then
@@ -676,15 +697,25 @@ function MainMenu.openDoor(header, params)
     os.pullEvent("key")
     
     -- Turn off all signals
-    for i, step in ipairs(params.sequence) do
-        redstone.setBundledOutput("" .. params.side .. "", colors["" .. step.color .. ""], false)
-    end
+    redstone.setBundledOutput("" .. params.side .. "", 0)
     
     -- Execute close sequence
     for i, step in ipairs(params.closeSequence) do
         local colorName = step.color
-        local signalState = (step.state == "on")
-        redstone.setBundledOutput("" .. params.side .. "", colors["" .. colorName .. ""], signalState)
+        local colorValue = colors["" .. colorName .. ""]
+        
+        -- Get current bundled output state
+        local currentState = redstone.getBundledOutput("" .. params.side .. "")
+        
+        -- Combine or subtract the signal based on state
+        if step.state == "on" then
+            currentState = colors.combine(currentState, colorValue)
+        else
+            currentState = colors.subtract(currentState, colorValue)
+        end
+        
+        -- Apply the new state
+        redstone.setBundledOutput("" .. params.side .. "", currentState)
         
         -- Wait for inter-step delay
         if step.delay > 0 then
