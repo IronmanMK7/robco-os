@@ -329,8 +329,146 @@ function MainMenu.configureOpenDoor(header)
     -- Question 4: Sequence Editor
     config.sequence = MainMenu.sequenceEditor(header, config.colors, "OPEN", nil, config.side)
     
+    -- Check if user cancelled
+    if #config.sequence == 0 then
+        return nil
+    end
+    
     -- Question 5: Close Door Configuration
     config.closeSequence = MainMenu.configureCloseDoor(header, config.colors, config.sequence, config.side)
+    
+    -- Check if user cancelled
+    if config.closeSequence == nil or (type(config.closeSequence) == "table" and #config.closeSequence == 0) then
+        return nil
+    end
+    
+    -- Question 6: Remote Trigger Configuration
+    while true do
+        term.clear()
+        header:draw()
+        
+        term.setCursorPos(2, 8)
+        term.setTextColor(colors.yellow)
+        print("REMOTE TRIGGER CONFIGURATION")
+        
+        term.setCursorPos(2, 10)
+        term.setTextColor(colors.white)
+        print("Will this door have remote trigger")
+        print("capability (e.g., triggered by redstone)?")
+        
+        term.setCursorPos(2, 13)
+        term.setTextColor(colors.cyan)
+        print("[Y] Yes - Add remote trigger")
+        print("[N] No - Skip remote trigger")
+        
+        local event, key = os.pullEvent("key")
+        if key == keys.y then
+            -- Ask for remote trigger color
+            while true do
+                -- Build list of used colors from sequences
+                local usedColors = {}
+                for _, step in ipairs(config.sequence) do
+                    usedColors[step.color] = true
+                end
+                for _, step in ipairs(config.closeSequence) do
+                    usedColors[step.color] = true
+                end
+                
+                -- Sort colors: unused first, then used
+                local unusedColors = {}
+                local usedColorList = {}
+                for _, color in ipairs(config.colors) do
+                    if not usedColors[color] then
+                        table.insert(unusedColors, color)
+                    else
+                        table.insert(usedColorList, color)
+                    end
+                end
+                
+                -- Combine: unused colors first, then used colors
+                local colorsToDisplay = {}
+                for _, color in ipairs(unusedColors) do
+                    table.insert(colorsToDisplay, color)
+                end
+                for _, color in ipairs(usedColorList) do
+                    table.insert(colorsToDisplay, color)
+                end
+                
+                term.clear()
+                header:draw()
+                term.setCursorPos(2, 8)
+                term.setTextColor(colors.yellow)
+                print("SELECT REMOTE TRIGGER COLOR")
+                
+                term.setCursorPos(2, 10)
+                term.setTextColor(colors.white)
+                print("Which color wire will send the")
+                print("remote trigger signal?")
+                
+                term.setCursorPos(2, 12)
+                print("Available colors: ")
+                term.setCursorPos(2, 13)
+                
+                local colorDisplay = table.concat(colorsToDisplay, ", ")
+                local maxWidth = 48
+                local lines = {}
+                local currentLine = ""
+                
+                for word in colorDisplay:gmatch("[^,]+") do
+                    word = word:match("^%s*(.-)%s*$")
+                    if currentLine == "" then
+                        currentLine = word
+                    elseif #(currentLine .. ", " .. word) <= maxWidth then
+                        currentLine = currentLine .. ", " .. word
+                    else
+                        table.insert(lines, currentLine)
+                        currentLine = word
+                    end
+                end
+                if currentLine ~= "" then
+                    table.insert(lines, currentLine)
+                end
+                
+                for lineIdx, line in ipairs(lines) do
+                    print(line)
+                    if lineIdx < #lines then
+                        term.setCursorPos(2, 13 + lineIdx)
+                    end
+                end
+                
+                local cursorY = 13 + #lines + 1
+                term.setCursorPos(2, cursorY)
+                print("Enter color name: ")
+                term.setCursorPos(2, cursorY + 1)
+                local input = string.lower(read())
+                
+                -- Check if color is in the user's configured colors
+                local validColor = false
+                for _, color in ipairs(config.colors) do
+                    if color == input then
+                        validColor = true
+                        break
+                    end
+                end
+                
+                if validColor then
+                    config.remoteTriggerColor = input
+                    config.hasRemoteTrigger = true
+                    break
+                else
+                    term.setCursorPos(2, cursorY + 3)
+                    term.setTextColor(colors.red)
+                    print("Invalid color. Please try again.")
+                    sleep(2)
+                end
+            end
+            break
+        elseif key == keys.n then
+            config.hasRemoteTrigger = false
+            config.remoteTriggerColor = nil
+            break
+        end
+    end
     
     return config
 end
@@ -747,7 +885,15 @@ function MainMenu.createSubmenuMenu(header, statusBar, admin)
                     if submenu.hasConfig then
                         if submenu.label == "Open Door" then
                             local config = MainMenu.configureOpenDoor(header)
+                            
+                            -- If user cancelled configuration, don't add the menu
+                            if config == nil then
+                                MainMenu.mainMenu(header, statusBar, admin)
+                                return
+                            end
+                            
                             configuredSubmenu.params = config
+                            configuredSubmenu.doorState = "closed"  -- Initialize door state
                             configuredSubmenu.callback = function(header) MainMenu.openDoor(header, config) end
                         end
                     end
