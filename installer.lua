@@ -2,10 +2,13 @@
 -- Downloads all project files from GitHub into robco_os directory
 
 local baseUrl = "https://raw.githubusercontent.com/IronmanMK7/robco-os/main/"
+local apiUrl = "https://api.github.com/repos/IronmanMK7/robco-os/contents?ref=main"
 local installDir = "robco_os"
 local version = {major = 1, minor = 0, patch = 0}
 local function versionString() return version.major .. "." .. version.minor .. "." .. version.patch end
-local files = {
+
+-- Fallback file list in case API is unreachable
+local fallbackFiles = {
     "src/main.lua",
     "src/config/config.lua",
     "src/config/settings.lua",
@@ -22,6 +25,46 @@ local files = {
     "uninstaller.lua",
     "version.lua"
 }
+
+-- Recursively discovers all .lua files from GitHub API (excludes installer.lua)
+local function discoverFiles()
+    local files = {}
+    
+    -- Attempt to fetch from GitHub API
+    local tempFile = ".gh_api_response"
+    local apiCmd = "wget -q " .. apiUrl .. " -O " .. tempFile
+    
+    if shell.run(apiCmd) and fs.exists(tempFile) then
+        local handle = fs.open(tempFile, "r")
+        if handle then
+            local content = handle.readAll()
+            handle.close()
+            fs.delete(tempFile)
+            
+            -- Simple JSON parsing for file paths
+            for path in content:gmatch('"path":"([^"]+)"') do
+                -- Include all Lua files and special files; exclude installer.lua
+                if path:match("%.lua$") and path ~= "installer.lua" then
+                    table.insert(files, path)
+                elseif path:match("^%.github/copilot%-instructions%.md$") then
+                    table.insert(files, path)
+                end
+            end
+            
+            -- If we found files, return them (sorted for consistency)
+            if #files > 0 then
+                table.sort(files)
+                return files
+            end
+        end
+    end
+    
+    -- Fall back to hardcoded list if API fails
+    print("Note: Using fallback file list (API unavailable)")
+    return fallbackFiles
+end
+
+local files = discoverFiles()
 
 print("RobCo OS GitHub Installer")
 print("Version " .. versionString())
