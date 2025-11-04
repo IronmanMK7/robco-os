@@ -796,73 +796,110 @@ function MainMenu.sequenceEditor(header, availableColors, sequenceType, preloade
     end
 end
 
-function MainMenu.openDoor(header, params)
+function MainMenu.openDoor(header, params, statusBar, admin)
     if not params.signalCount then
         centerTextBlock({"Open Door not configured!", "Please remove and re-add this option."}, colors.red)
         sleep(3)
         return
     end
     
+    -- Find the door submenu entry to update state
+    local doorSubmenu = nil
+    for _, submenu in ipairs(activeSubmenus) do
+        if submenu.label == "Open Door" or submenu.label == "Close Door" then
+            doorSubmenu = submenu
+            break
+        end
+    end
+    
+    -- Mark sequence as running
+    if doorSubmenu then
+        doorSubmenu.sequenceRunning = true
+    end
+    
     MainMenu.printHeaderOnly(header)
-    centerTextBlock({"Opening door...", "Sending " .. params.signalCount .. " signals on " .. string.upper(params.side) .. " side"}, colors.lime)
     
-    -- Send open sequence
-    for i, step in ipairs(params.sequence) do
-        local colorName = step.color
-        local colorValue = colors["" .. colorName .. ""]
+    -- Determine what action to take based on door state
+    local shouldOpen = doorSubmenu and doorSubmenu.doorState == "closed"
+    
+    if shouldOpen then
+        centerTextBlock({"Opening door...", "Sending " .. params.signalCount .. " signals on " .. string.upper(params.side) .. " side"}, colors.lime)
         
-        -- Get current bundled output state
-        local currentState = redstone.getBundledOutput("" .. params.side .. "")
-        
-        -- Combine or subtract the signal based on state
-        if step.state == "on" then
-            currentState = colors.combine(currentState, colorValue)
-        else
-            currentState = colors.subtract(currentState, colorValue)
+        -- Send open sequence
+        for i, step in ipairs(params.sequence) do
+            local colorName = step.color
+            local colorValue = colors["" .. colorName .. ""]
+            
+            -- Get current bundled output state
+            local currentState = redstone.getBundledOutput("" .. params.side .. "")
+            
+            -- Combine or subtract the signal based on state
+            if step.state == "on" then
+                currentState = colors.combine(currentState, colorValue)
+            else
+                currentState = colors.subtract(currentState, colorValue)
+            end
+            
+            -- Apply the new state
+            redstone.setBundledOutput("" .. params.side .. "", currentState)
+            
+            -- Wait for inter-step delay
+            if step.delay > 0 then
+                sleep(step.delay)
+            end
         end
         
-        -- Apply the new state
-        redstone.setBundledOutput("" .. params.side .. "", currentState)
+        -- Update door state to open
+        if doorSubmenu then
+            doorSubmenu.doorState = "open"
+            doorSubmenu.label = "Close Door"
+            doorSubmenu.callback = function(header) MainMenu.openDoor(header, params, statusBar, admin) end
+        end
+    else
+        centerTextBlock({"Closing door...", "Sending " .. params.signalCount .. " signals on " .. string.upper(params.side) .. " side"}, colors.lime)
         
-        -- Wait for inter-step delay
-        if step.delay > 0 then
-            sleep(step.delay)
+        -- Execute close sequence
+        for i, step in ipairs(params.closeSequence) do
+            local colorName = step.color
+            local colorValue = colors["" .. colorName .. ""]
+            
+            -- Get current bundled output state
+            local currentState = redstone.getBundledOutput("" .. params.side .. "")
+            
+            -- Combine or subtract the signal based on state
+            if step.state == "on" then
+                currentState = colors.combine(currentState, colorValue)
+            else
+                currentState = colors.subtract(currentState, colorValue)
+            end
+            
+            -- Apply the new state
+            redstone.setBundledOutput("" .. params.side .. "", currentState)
+            
+            -- Wait for inter-step delay
+            if step.delay > 0 then
+                sleep(step.delay)
+            end
+        end
+        
+        -- Update door state to closed
+        if doorSubmenu then
+            doorSubmenu.doorState = "closed"
+            doorSubmenu.label = "Open Door"
+            doorSubmenu.callback = function(header) MainMenu.openDoor(header, params, statusBar, admin) end
         end
     end
     
-    -- Wait for user input to turn off signals
-    centerTextBlock({"Door opened!", "Press any key to close door..."}, colors.green)
-    os.pullEvent("key")
-    
-    -- Turn off all signals
-    redstone.setBundledOutput("" .. params.side .. "", 0)
-    
-    -- Execute close sequence
-    for i, step in ipairs(params.closeSequence) do
-        local colorName = step.color
-        local colorValue = colors["" .. colorName .. ""]
-        
-        -- Get current bundled output state
-        local currentState = redstone.getBundledOutput("" .. params.side .. "")
-        
-        -- Combine or subtract the signal based on state
-        if step.state == "on" then
-            currentState = colors.combine(currentState, colorValue)
-        else
-            currentState = colors.subtract(currentState, colorValue)
-        end
-        
-        -- Apply the new state
-        redstone.setBundledOutput("" .. params.side .. "", currentState)
-        
-        -- Wait for inter-step delay
-        if step.delay > 0 then
-            sleep(step.delay)
-        end
+    -- Mark sequence as not running
+    if doorSubmenu then
+        doorSubmenu.sequenceRunning = false
     end
     
-    centerTextBlock({"Door closed!"}, colors.green)
-    sleep(1)
+    -- Save updated menu state
+    saveActiveMenus()
+    
+    -- Return to main menu
+    MainMenu.mainMenu(header, statusBar, admin)
 end
 
 function MainMenu.createSubmenuMenu(header, statusBar, admin)
@@ -894,7 +931,7 @@ function MainMenu.createSubmenuMenu(header, statusBar, admin)
                             
                             configuredSubmenu.params = config
                             configuredSubmenu.doorState = "closed"  -- Initialize door state
-                            configuredSubmenu.callback = function(header) MainMenu.openDoor(header, config) end
+                            configuredSubmenu.callback = function(header) MainMenu.openDoor(header, config, statusBar, admin) end
                         end
                     end
                     
