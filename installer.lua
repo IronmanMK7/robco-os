@@ -21,32 +21,32 @@ local fallbackFiles = {
     "src/ui/menu/MainMenu.lua",
     "src/util/Admin.lua",
     "src/util/faction/Faction.lua",
+    "src/assets/audio/65 - Fallout 4 Main Theme ('Spinner' mix).dfpwm",
     "updater.lua",
     "uninstaller.lua",
-    "version.lua"
+    "version.lua",
+    "README.md"
 }
 
--- Recursively discovers all .lua files from GitHub API (excludes installer.lua)
+-- Recursively discovers all files from GitHub API (excludes installer.lua)
 local function discoverFiles()
     local files = {}
     
-    -- Attempt to fetch from GitHub API
+    -- Attempt to fetch from GitHub API (recursive tree endpoint)
     local tempFile = ".gh_api_response"
-    local apiCmd = "wget -q " .. apiUrl .. " -O " .. tempFile
+    local apiUrl = "https://api.github.com/repos/IronmanMK7/robco-os/git/trees/main?recursive=1"
     
-    if shell.run(apiCmd) and fs.exists(tempFile) then
+    if shell.run("wget", "-q", apiUrl, "-O", tempFile) and fs.exists(tempFile) then
         local handle = fs.open(tempFile, "r")
         if handle then
             local content = handle.readAll()
             handle.close()
             fs.delete(tempFile)
             
-            -- Simple JSON parsing for file paths
+            -- Parse JSON to extract file paths (only files, not directories)
             for path in content:gmatch('"path":"([^"]+)"') do
-                -- Include all Lua files and special files; exclude installer.lua
-                if path:match("%.lua$") and path ~= "installer.lua" then
-                    table.insert(files, path)
-                elseif path:match("^%.github/copilot%-instructions%.md$") then
+                -- Include all files except installer.lua
+                if path ~= "installer.lua" then
                     table.insert(files, path)
                 end
             end
