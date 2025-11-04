@@ -1,5 +1,6 @@
 -- Audio utility for playing DFPWM audio files
 -- Uses dfpwm.lua from GitHub gist
+-- Streams audio directly from URLs to avoid disk space issues
 
 local Audio = {}
 Audio.__index = Audio
@@ -45,7 +46,7 @@ function Audio:new()
     return obj
 end
 
--- Play a DFPWM audio file
+-- Play a DFPWM audio file from disk
 function Audio:playFile(filename)
     if not fs.exists(filename) then
         return false, "File not found: " .. filename
@@ -97,8 +98,61 @@ function Audio:downloadFile(url, destPath)
     return success, success and "Download complete" or "Download failed"
 end
 
--- Play a DFPWM file from a URL (downloads then plays)
-function Audio:playFromURL(url, cacheFile)
+-- Stream and play DFPWM audio directly from a URL without caching to disk
+-- This reads the audio data directly from the HTTP response
+function Audio:playFromURL(url)
+    -- Load DFPWM player if not already loaded
+    if not self.dfpwmPlayer then
+        self.dfpwmPlayer = loadDFPWMPlayer()
+        if not self.dfpwmPlayer then
+            return false, "Could not load DFPWM player"
+        end
+    end
+    
+    -- Create a temporary file for wget to pipe into
+    local tempFile = ".audio_stream"
+    
+    -- Download directly to temp file (wget will handle the streaming)
+    local dlSuccess = shell.run("wget", url, "-O", tempFile)
+    if not dlSuccess then
+        if fs.exists(tempFile) then
+            fs.delete(tempFile)
+        end
+        return false, "Failed to download audio from URL"
+    end
+    
+    -- Read the streamed content
+    local file = fs.open(tempFile, "rb")
+    if not file then
+        fs.delete(tempFile)
+        return false, "Could not read streamed audio data"
+    end
+    
+    local content = file.readAll()
+    file.close()
+    
+    -- Clean up temp file immediately
+    fs.delete(tempFile)
+    
+    if not content or #content == 0 then
+        return false, "Audio stream is empty"
+    end
+    
+    -- Play the audio
+    local success, err = pcall(function()
+        self.dfpwmPlayer(content)
+    end)
+    
+    if success then
+        return true
+    else
+        return false, "Playback error: " .. tostring(err)
+    end
+end
+
+-- Play a DFPWM file from a URL (old method - kept for compatibility)
+-- NOTE: This method is deprecated due to disk space issues. Use playFromURL() instead.
+function Audio:playFromURLCached(url, cacheFile)
     cacheFile = cacheFile or ".audio_cache"
     
     -- Download the file
