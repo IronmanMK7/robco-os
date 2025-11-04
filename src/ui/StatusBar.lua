@@ -9,6 +9,7 @@ function StatusBar:new(text)
     obj.text = text or ""
     obj.line = termH
     obj.width = termW
+    obj.isFixed = true  -- Mark status bar as fixed area
     setmetatable(obj, self)
     return obj
 end

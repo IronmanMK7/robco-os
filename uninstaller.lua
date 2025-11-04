@@ -1,6 +1,5 @@
 -- RobCo OS Uninstaller
--- Removes RobCo OS installation dynamically
--- Can be run from anywhere and will locate and remove the robco_os directory
+-- Removes RobCo OS installation and cleans up startup configuration
 
 local version = {major = 2, minor = 0, patch = 0}
 local function versionString() return version.major .. "." .. version.minor .. "." .. version.patch end
@@ -9,10 +8,25 @@ print("RobCo OS Uninstaller")
 print("Version " .. versionString())
 print("")
 
+-- Function to recursively delete directory and its contents
+local function deleteDir(path)
+    if not fs.exists(path) then
+        return true
+    end
+    
+    if fs.isDir(path) then
+        for _, child in ipairs(fs.list(path)) do
+            if not deleteDir(fs.combine(path, child)) then
+                return false
+            end
+        end
+    end
+    
+    return fs.delete(path)
+end
+
 -- Function to recursively search for robco_os directory
 local function findRobCoOSDir()
-    local searchPath = ""
-    
     -- First, check if robco_os exists in current directory
     if fs.exists("robco_os") and fs.isDir("robco_os") then
         return "robco_os"
@@ -49,23 +63,6 @@ local function findRobCoOSDir()
     return nil
 end
 
--- Function to recursively delete directory and its contents
-local function deleteDir(path)
-    if not fs.exists(path) then
-        return true
-    end
-    
-    if fs.isDir(path) then
-        for _, child in ipairs(fs.list(path)) do
-            if not deleteDir(fs.combine(path, child)) then
-                return false
-            end
-        end
-    end
-    
-    return fs.delete(path)
-end
-
 -- Locate the robco_os directory
 print("Locating RobCo OS installation...")
 local installDir = findRobCoOSDir()
@@ -93,23 +90,6 @@ end
 print("")
 print("Uninstalling...")
 
--- Function to recursively delete directory and its contents
-local function deleteDir(path)
-    if not fs.exists(path) then
-        return true
-    end
-    
-    if fs.isDir(path) then
-        for _, child in ipairs(fs.list(path)) do
-            if not deleteDir(fs.combine(path, child)) then
-                return false
-            end
-        end
-    end
-    
-    return fs.delete(path)
-end
-
 -- Remove the entire installation directory
 print("Removing " .. installDir .. " directory...")
 if deleteDir(installDir) then
@@ -119,55 +99,58 @@ else
     print("  Some files may still exist")
 end
 
--- Try to clean up any backup files in the same parent directory as robco_os
-local parentDir = fs.getDir(installDir)
-if parentDir == "" then parentDir = "" end
-
+-- Remove startup.lua modifications
 print("")
-print("Cleaning up backup files...")
-
-local backupFiles = {"updater.lua.bak", "uninstaller.lua.bak", "version.lua.bak"}
-for _, backupFile in ipairs(backupFiles) do
-    local fullPath = fs.combine(parentDir, backupFile)
-    if fs.exists(fullPath) then
-        fs.delete(fullPath)
-        print("  Removed " .. fullPath)
-    end
-end
-
--- Try to remove standalone updater and uninstaller from parent directory
-local filesToRemove = {"updater.lua", "uninstaller.lua", "version.lua"}
-for _, file in ipairs(filesToRemove) do
-    local fullPath = fs.combine(parentDir, file)
-    if fs.exists(fullPath) and fullPath ~= shell.getRunningProgram() then
-        fs.delete(fullPath)
-        print("  Removed " .. fullPath)
-    end
-end
-
-print("")
-print("=== Uninstall Summary ===")
-print("RobCo OS has been removed from: " .. installDir)
-print("")
-
--- Offer to restore default startup if it exists
+print("Cleaning up startup configuration...")
 if fs.exists("rom/startup.lua") then
-    print("Restore default startup.lua? (Y/N)")
-    local event, key = os.pullEvent("key")
-    if key == keys.y then
-        print("Restoring default startup...")
-        local startupFile = fs.open("rom/startup.lua", "w")
-        if startupFile then
-            startupFile.writeLine("-- Default ComputerCraft startup")
-            startupFile.writeLine("os.run({}, \"rom/programs/shell\")")
-            startupFile.close()
-            print("Startup restored to default")
-        else
-            print("Warning: Could not restore startup.lua")
+    local startupFile = fs.open("rom/startup.lua", "r")
+    if startupFile then
+        local content = startupFile.readAll()
+        startupFile.close()
+        
+        -- Remove RobCo OS launch instruction from startup
+        local lines = {}
+        for line in content:gmatch("[^\n]+") do
+            if not line:match("robco_os") and not line:match("RobCo OS") then
+                table.insert(lines, line)
+            end
+        end
+        
+        -- Rewrite startup.lua if we removed anything
+        if #lines < content:gmatch("\n") then
+            local startupFile = fs.open("rom/startup.lua", "w")
+            if startupFile then
+                for _, line in ipairs(lines) do
+                    startupFile.writeLine(line)
+                end
+                startupFile.close()
+                print("  Removed RobCo OS from startup")
+            end
         end
     end
 end
 
+-- Delete uninstaller.lua as final step
+print("")
+print("Finalizing uninstall...")
+local uninstallerPath = shell.getRunningProgram()
+-- Schedule deletion after uninstaller exits
+print("=== Uninstall Summary ===")
+print("RobCo OS has been removed from: " .. installDir)
 print("")
 print("Uninstall complete!")
 print("Press any key to return to shell...")
+os.pullEvent("key")
+
+-- Delete self after a brief delay to allow exit
+local tempFile = ".uninstall_cleanup"
+local cleanupScript = fs.open(tempFile, "w")
+if cleanupScript then
+    cleanupScript.writeLine("sleep(0.5)")
+    cleanupScript.writeLine("if fs.exists('" .. uninstallerPath .. "') then")
+    cleanupScript.writeLine("  fs.delete('" .. uninstallerPath .. "')")
+    cleanupScript.writeLine("end")
+    cleanupScript.writeLine("if fs.exists('.uninstall_cleanup') then fs.delete('.uninstall_cleanup') end")
+    cleanupScript.close()
+    shell.run(tempFile)
+end

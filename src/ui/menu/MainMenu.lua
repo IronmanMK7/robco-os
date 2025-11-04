@@ -1,7 +1,8 @@
 -- MainMenu subclass of Menu
 local MainMenu = {}
 local Menu = require("ui.menu.Menu")
-local centerTextBlock = require("ui.UI").centerTextBlock
+local UI = require("ui.UI")
+local centerTextBlock = UI.centerTextBlock
 local settings = require("config.settings")
 
 local defaultSubmenus = {
@@ -144,38 +145,23 @@ function MainMenu.configureOpenDoor(header)
         term.setCursorPos(2, 8)
         term.setTextColor(colors.green)
         print("OPEN DOOR CONFIGURATION")
+        
         term.setCursorPos(2, 10)
         term.setTextColor(colors.green)
         local question = "How many redstone signals are required to operate the door?"
-        local maxWidth = term.getSize() - 3 -- Leave margin
-        local lines = {}
-        local currentLine = ""
+        local lines = UI.wrapText(question, term.getSize() - 3)
+        local currentY = 10
         
-        for word in question:gmatch("%S+") do
-            if currentLine == "" then
-            currentLine = word
-            elseif #(currentLine .. " " .. word) <= maxWidth then
-            currentLine = currentLine .. " " .. word
-            else
-            table.insert(lines, currentLine)
-            currentLine = word
-            end
-        end
-        if currentLine ~= "" then
-            table.insert(lines, currentLine)
-        end
-        
-        for lineIdx, line in ipairs(lines) do
+        for _, line in ipairs(lines) do
+            term.setCursorPos(2, currentY)
             print(line)
-            if lineIdx < #lines then
-            term.setCursorPos(2, 10 + lineIdx)
-            end
+            currentY = currentY + 1
         end
         
         -- Adjust cursor position for input based on number of wrapped lines
-        term.setCursorPos(2, 10 + #lines)
+        term.setCursorPos(2, currentY)
         print("Enter a number between 1 and 16:")
-        term.setCursorPos(2, 10 + #lines + 1)
+        term.setCursorPos(2, currentY + 1)
         local input = read()
         local num = tonumber(input)
         if num and num >= 1 and num <= 16 and math.floor(num) == num then
@@ -201,45 +187,29 @@ function MainMenu.configureOpenDoor(header)
         print("Which side of the computer should output signals?")
         term.setCursorPos(2, 11)
         print("Hint: Use the side connected to your bundled cable")
-        term.setCursorPos(2, 12)
-        print("Valid options: ")
         
         -- Display valid sides with word wrapping
         local sideDisplay = "top, bottom, left, right, back, front"
-        local maxWidth = 48
-        local lines = {}
-        local currentLine = ""
+        local sideLines = UI.wrapText(sideDisplay, 48)
+        local currentY = 12
         
-        for word in sideDisplay:gmatch("[^,]+") do
-            word = word:match("^%s*(.-)%s*$") -- trim spaces
-            if currentLine == "" then
-                currentLine = word
-            elseif #(currentLine .. ", " .. word) <= maxWidth then
-                currentLine = currentLine .. ", " .. word
-            else
-                table.insert(lines, currentLine)
-                currentLine = word
-            end
-        end
-        if currentLine ~= "" then
-            table.insert(lines, currentLine)
-        end
+        term.setCursorPos(2, currentY)
+        print("Valid options: ")
+        currentY = currentY + 1
         
-        for lineIdx, line in ipairs(lines) do
+        for _, line in ipairs(sideLines) do
+            term.setCursorPos(2, currentY)
             print(line)
-            if lineIdx < #lines then
-                term.setCursorPos(2, 12 + lineIdx)
-            end
+            currentY = currentY + 1
         end
         
-        local cursorY = 12 + #lines + 1
-        term.setCursorPos(2, cursorY)
+        term.setCursorPos(2, currentY)
         local input = string.lower(read())
         if input == "top" or input == "bottom" or input == "left" or input == "right" or input == "back" or input == "front" then
             config.side = string.lower(input)
             break
         else
-            term.setCursorPos(2, cursorY + 2)
+            term.setCursorPos(2, currentY + 2)
             term.setTextColor(colors.red)
             print("Invalid input. Please enter one of the valid sides.")
             sleep(2)
@@ -262,39 +232,23 @@ function MainMenu.configureOpenDoor(header)
             print("Signal " .. i .. " of " .. config.signalCount)
             term.setCursorPos(2, 11)
             print("Enter the color for this redstone signal:")
-            term.setCursorPos(2, 12)
-            print("Available colors: ")
-            term.setCursorPos(2, 13)
+            
             -- Display available colors with word wrapping
             local colorDisplay = table.concat(validColors, ", ")
-            local maxWidth = 48
-            local lines = {}
-            local currentLine = ""
+            local colorLines = UI.wrapText(colorDisplay, 48)
+            local currentY = 12
             
-            for word in colorDisplay:gmatch("[^,]+") do
-                word = word:match("^%s*(.-)%s*$") -- trim spaces
-                if currentLine == "" then
-                    currentLine = word
-                elseif #(currentLine .. ", " .. word) <= maxWidth then
-                    currentLine = currentLine .. ", " .. word
-                else
-                    table.insert(lines, currentLine)
-                    currentLine = word
-                end
-            end
-            if currentLine ~= "" then
-                table.insert(lines, currentLine)
-            end
+            term.setCursorPos(2, currentY)
+            print("Available colors: ")
+            currentY = currentY + 1
             
-            for lineIdx, line in ipairs(lines) do
+            for _, line in ipairs(colorLines) do
+                term.setCursorPos(2, currentY)
                 print(line)
-                if lineIdx < #lines then
-                    term.setCursorPos(2, 13 + lineIdx)
-                end
+                currentY = currentY + 1
             end
             
-            local cursorY = 13 + #lines
-            term.setCursorPos(2, cursorY)
+            term.setCursorPos(2, currentY)
             local input = string.lower(read())
             local validColor = false
             local colorIndex = 0
@@ -318,7 +272,7 @@ function MainMenu.configureOpenDoor(header)
                 table.remove(validColors, colorIndex)
                 break
             else
-                term.setCursorPos(2, 17)
+                term.setCursorPos(2, currentY + 2)
                 term.setTextColor(colors.red)
                 print("Invalid color. Please enter an available color.")
                 sleep(2)
@@ -405,41 +359,24 @@ function MainMenu.configureOpenDoor(header)
                 print("Which color wire will send the")
                 print("remote trigger signal?")
                 
-                term.setCursorPos(2, 12)
-                print("Available colors: ")
-                term.setCursorPos(2, 13)
-                
+                -- Display available colors with word wrapping
                 local colorDisplay = table.concat(colorsToDisplay, ", ")
-                local maxWidth = 48
-                local lines = {}
-                local currentLine = ""
+                local colorLines = UI.wrapText(colorDisplay, 48)
+                local currentY = 12
                 
-                for word in colorDisplay:gmatch("[^,]+") do
-                    word = word:match("^%s*(.-)%s*$")
-                    if currentLine == "" then
-                        currentLine = word
-                    elseif #(currentLine .. ", " .. word) <= maxWidth then
-                        currentLine = currentLine .. ", " .. word
-                    else
-                        table.insert(lines, currentLine)
-                        currentLine = word
-                    end
-                end
-                if currentLine ~= "" then
-                    table.insert(lines, currentLine)
-                end
+                term.setCursorPos(2, currentY)
+                print("Available colors: ")
+                currentY = currentY + 1
                 
-                for lineIdx, line in ipairs(lines) do
+                for _, line in ipairs(colorLines) do
+                    term.setCursorPos(2, currentY)
                     print(line)
-                    if lineIdx < #lines then
-                        term.setCursorPos(2, 13 + lineIdx)
-                    end
+                    currentY = currentY + 1
                 end
                 
-                local cursorY = 13 + #lines + 1
-                term.setCursorPos(2, cursorY)
+                term.setCursorPos(2, currentY)
                 print("Enter color name: ")
-                term.setCursorPos(2, cursorY + 1)
+                term.setCursorPos(2, currentY + 1)
                 local input = string.lower(read())
                 
                 -- Check if color is in the user's configured colors
@@ -456,7 +393,7 @@ function MainMenu.configureOpenDoor(header)
                     config.hasRemoteTrigger = true
                     break
                 else
-                    term.setCursorPos(2, cursorY + 3)
+                    term.setCursorPos(2, currentY + 3)
                     term.setTextColor(colors.red)
                     print("Invalid color. Please try again.")
                     sleep(2)

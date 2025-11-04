@@ -12,6 +12,7 @@ function Header:new()
     obj.line = 1
     obj.height = 1
     obj.width = termW
+    obj.isFixed = true  -- Mark header as fixed area
     setmetatable(obj, self)
     return obj
 end

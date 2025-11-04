@@ -83,46 +83,34 @@ end
 
 -- Fetch file list from GitHub API to get remote structure
 local function getRemoteFileList()
-    -- Try to fetch from GitHub API (tree endpoint)
-    local success = shell.run("wget", "https://api.github.com/repos/IronmanMK7/robco-os/git/trees/main?recursive=1", ".remote_tree.json")
+    -- Fetch from GitHub API (contents endpoint for repository root)
+    local apiUrl = "https://api.github.com/repos/IronmanMK7/robco-os/contents?ref=main"
+    local tempFile = ".gh_api_response"
+    local success = shell.run("wget", "-q", apiUrl, "-O", tempFile)
     
     local files = {}
-    if success and fs.exists(".remote_tree.json") then
-        local file = io.open(".remote_tree.json", "r")
+    if success and fs.exists(tempFile) then
+        local file = io.open(tempFile, "r")
         if file then
             local content = file:read("*a")
             file:close()
             
-            -- Parse JSON to extract file paths
-            for path in content:gmatch('"path":"([^"]+%.lua)"') do
-                if path ~= "installer.lua" then
+            -- Parse JSON to extract file paths (both .lua files and special files)
+            for path in content:gmatch('"path":"([^"]+)"') do
+                if (path:match("%.lua$") and path ~= "installer.lua") or path:match("^%.github/copilot%-instructions%.md$") then
                     table.insert(files, path)
                 end
             end
             
-            fs.delete(".remote_tree.json")
+            fs.delete(tempFile)
         end
     end
     
-    -- Fallback to known file list if API fails
+    -- If dynamic discovery fails, error out (no hardcoded fallback)
     if #files == 0 then
-        files = {
-            "src/main.lua",
-            "src/config/config.lua",
-            "src/config/settings.lua",
-            "src/puzzle/Puzzle.lua",
-            "src/puzzle/MemDumpPuzzle.lua",
-            "src/ui/Header.lua",
-            "src/ui/StatusBar.lua",
-            "src/ui/UI.lua",
-            "src/ui/menu/Menu.lua",
-            "src/ui/menu/MainMenu.lua",
-            "src/util/Admin.lua",
-            "src/util/faction/Faction.lua",
-            "updater.lua",
-            "uninstaller.lua",
-            "version.lua"
-        }
+        print("ERROR: Could not fetch file list from GitHub API")
+        print("Please check your internet connection and try again.")
+        return nil
     end
     
     return files
@@ -179,8 +167,37 @@ local movedFiles = {}
 
 -- Get list of files to update from remote
 local remoteFiles = getRemoteFileList()
+
+-- Check if API fetch failed
+if remoteFiles == nil then
+    return
+end
+
 print("Found " .. #remoteFiles .. " files to check")
 print("")
+
+-- Build a set of remote files for easier lookup
+local remoteSet = {}
+for _, file in ipairs(remoteFiles) do
+    remoteSet[installDir .. "/" .. file] = true
+end
+
+-- Remove local files that no longer exist in remote (except preserved files)
+print("Checking for removed files...")
+local localFiles = scanDirectory(installDir)
+local removedCount = 0
+for _, localFile in ipairs(localFiles) do
+    if not remoteSet[localFile] and not shouldPreserve(localFile) then
+        print("Removing: " .. localFile)
+        fs.delete(localFile)
+        removedCount = removedCount + 1
+    end
+end
+
+if removedCount > 0 then
+    print("Removed " .. removedCount .. " file(s)")
+    print("")
+end
 
 -- Update all files
 for i, file in ipairs(remoteFiles) do
