@@ -698,10 +698,10 @@ function MainMenu.sequenceEditor(header, availableColors, sequenceType, preloade
             end
         end
         
-        -- Turn off all signals
-        redstone.setBundledOutput("" .. side .. "", 0)   
+        -- NOTE: Do NOT turn off signals here - let them persist for testing
+        -- Users can manually reset or re-run sequences as needed
         
-        centerTextBlock({"Test complete!", "Press any key to continue"}, colors.green)
+        centerTextBlock({"Test complete!", "Signals maintained.", "Press any key to continue"}, colors.green)
         os.pullEvent("key")
     end
     
@@ -791,8 +791,14 @@ function MainMenu.openDoor(header, params, statusBar, admin)
         end
     end
     
-    -- Ensure final state is maintained
+    -- Ensure final state is maintained and stored
     redstone.setBundledOutput("" .. params.side .. "", finalState)
+    
+    -- Store the final redstone state in the door configuration for persistence
+    if not params.finalRedstoneState then
+        params.finalRedstoneState = {}
+    end
+    params.finalRedstoneState[params.side] = finalState
     
     -- Update door state
     if doorSubmenu then
@@ -804,6 +810,8 @@ function MainMenu.openDoor(header, params, statusBar, admin)
             doorSubmenu.label = "Open Door"
         end
         doorSubmenu.callback = function(header) MainMenu.openDoor(header, params, statusBar, admin) end
+        -- Store reference to params so redstone state persists
+        doorSubmenu.params = params
     end
     
     -- Mark sequence as not running
@@ -814,7 +822,7 @@ function MainMenu.openDoor(header, params, statusBar, admin)
     -- Save updated menu state
     saveActiveMenus()
     
-    -- Return to main menu
+    -- Return to main menu WITHOUT clearing redstone signals
     MainMenu.mainMenu(header, statusBar, admin)
 end
 
