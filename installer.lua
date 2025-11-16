@@ -21,11 +21,13 @@ local fallbackFiles = {
     "src/ui/menu/MainMenu.lua",
     "src/util/Admin.lua",
     "src/util/Audio.lua",
+    "src/util/RemoteTriggerMonitor.lua",
     "src/util/faction/Faction.lua",
     "updater.lua",
     "uninstaller.lua",
     "version.lua",
-    "README.md"
+    "README.md",
+    ".github/copilot-instructions.md"
 }
 
 -- Recursively discovers all files from GitHub API (excludes installer.lua)
