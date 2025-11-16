@@ -136,6 +136,87 @@ function MainMenu.logout(header)
     -- Return to puzzle (main loop will handle)
 end
 
+function MainMenu.showRemoteTriggerStatus(header, statusBar)
+    MainMenu.printHeaderOnly(header)
+    
+    -- Check if config file exists
+    local configExists = fs.exists("robco_trigger_monitor_config")
+    local triggers = {}
+    
+    if configExists then
+        local file = fs.open("robco_trigger_monitor_config", "r")
+        if file then
+            local content = file.readAll()
+            file.close()
+            if content and content ~= "" then
+                triggers = textutils.unserialize(content) or {}
+            end
+        end
+    end
+    
+    term.setCursorPos(2, 8)
+    term.setTextColor(colors.cyan)
+    print("=== REMOTE TRIGGER MONITORING STATUS ===")
+    
+    term.setCursorPos(2, 10)
+    term.setTextColor(colors.white)
+    
+    if configExists and #triggers > 0 then
+        term.setTextColor(colors.lime)
+        print("STATUS: ACTIVE")
+        term.setTextColor(colors.white)
+        
+        term.setCursorPos(2, 12)
+        print("Monitoring " .. #triggers .. " remote trigger(s):")
+        
+        local displayY = 13
+        for i, trigger in ipairs(triggers) do
+            term.setCursorPos(2, displayY)
+            term.setTextColor(colors.yellow)
+            print("[" .. i .. "] Door: " .. trigger.doorLabel)
+            
+            displayY = displayY + 1
+            term.setCursorPos(4, displayY)
+            term.setTextColor(colors.white)
+            print("Side: " .. string.upper(trigger.side) .. " | Color: " .. trigger.triggerColor)
+            
+            displayY = displayY + 1
+            term.setCursorPos(4, displayY)
+            print("State: " .. trigger.doorState .. " | Signals: " .. trigger.signalCount)
+            
+            displayY = displayY + 2
+        end
+        
+        term.setCursorPos(2, displayY)
+        term.setTextColor(colors.lime)
+        print("Background process is running and monitoring")
+        term.setCursorPos(2, displayY + 1)
+        print("redstone signals for trigger events.")
+    else
+        term.setTextColor(colors.orange)
+        print("STATUS: INACTIVE")
+        term.setTextColor(colors.white)
+        
+        term.setCursorPos(2, 12)
+        print("No remote triggers configured.")
+        
+        term.setCursorPos(2, 14)
+        term.setTextColor(colors.gray)
+        print("To enable remote monitoring:")
+        term.setCursorPos(2, 15)
+        print("1. Configure an 'Open Door' with remote trigger enabled")
+        term.setCursorPos(2, 16)
+        print("2. Exit and re-enter the menu")
+        term.setCursorPos(2, 17)
+        print("3. Background process will start automatically")
+    end
+    
+    term.setCursorPos(2, 21)
+    term.setTextColor(colors.cyan)
+    print("Press any key to return...")
+    os.pullEvent("key")
+end
+
 function MainMenu.configureOpenDoor(header)
     local config = {}
     
@@ -910,6 +991,10 @@ function MainMenu.mainMenu(header, statusBar, admin)
         end},
         {label = "[-] Remove Submenu", enabled = isAdmin, callback = function()
             MainMenu.removeSubmenuMenu(header, statusBar, admin)
+        end},
+        {label = "Remote Trigger Status", enabled = isAdmin, callback = function()
+            MainMenu.showRemoteTriggerStatus(header, statusBar)
+            MainMenu.mainMenu(header, statusBar, admin)
         end}
     }
     -- Add active submenus to menuOptions in order
