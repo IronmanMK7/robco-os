@@ -985,11 +985,17 @@ function MainMenu.mainMenu(header, statusBar, admin)
                 end
             end
             
-            -- Use a timeout on pullEvent to check triggers periodically (every 0.1 seconds)
-            local event, p1, p2, p3 = os.pullEventTimeout(0.1)
-            if os.clock() - startTime > self.timeout then
-                self:exit()
-                break
+            -- Use os.pullEvent with timeout simulation
+            local timerID = os.startTimer(0.1)
+            local event, p1, p2, p3 = os.pullEvent()
+            
+            if event == "timer" and p1 == timerID then
+                -- Timeout occurred, check if we've exceeded max time
+                if os.clock() - startTime > self.timeout then
+                    self:exit()
+                    break
+                end
+                event = nil -- Ignore timer event, continue looping
             end
             
             if event then
