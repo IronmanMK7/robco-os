@@ -1129,12 +1129,11 @@ function MainMenu.mainMenu(header, statusBar, admin)
 end
 
 function MainMenu.showSecurityLog(header)
-    MainMenu.printHeaderOnly(header)
-    
     -- Load all events
     local events = SecurityLog.getAllEvents()
     
     if #events == 0 then
+        MainMenu.printHeaderOnly(header)
         centerTextBlock({"SECURITY LOG", "", "No events recorded."}, colors.green)
         sleep(2)
         return
@@ -1148,8 +1147,8 @@ function MainMenu.showSecurityLog(header)
     
     -- Display events with scrolling
     local eventIndex = 1
-    local _, screenHeight = term.getSize()
-    local contentHeight = screenHeight - 4  -- Account for header and status bar
+    local screenWidth, screenHeight = term.getSize()
+    local contentHeight = screenHeight - 5  -- Account for header, column headers, and back button
     
     while true do
         term.clear()
@@ -1182,9 +1181,15 @@ function MainMenu.showSecurityLog(header)
         
         -- Print navigation hint
         term.setCursorPos(2, screenHeight - 1)
-        term.setTextColor(colors.gray)
+        term.setTextColor(colors.cyan)
         term.setBackgroundColor(colors.black)
-        term.write("UP/DOWN: Navigate | Q: Back")
+        term.write("UP/DOWN: Navigate")
+        
+        -- Print back button
+        term.setCursorPos(2, screenHeight)
+        term.setTextColor(colors.green)
+        term.setBackgroundColor(colors.black)
+        term.write("[-] BACK")
         
         -- Handle input
         local event, param1 = os.pullEvent("key")
@@ -1192,7 +1197,7 @@ function MainMenu.showSecurityLog(header)
             eventIndex = eventIndex - 1
         elseif param1 == keys.down and eventIndex < #displayEvents then
             eventIndex = eventIndex + 1
-        elseif param1 == keys.q then
+        elseif param1 == keys.enter then
             break
         end
     end
