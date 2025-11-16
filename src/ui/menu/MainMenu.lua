@@ -5,6 +5,7 @@ local UI = require("ui.UI")
 local centerTextBlock = UI.centerTextBlock
 local settings = require("config.settings")
 local RemoteTriggerMonitor = require("util.RemoteTriggerMonitor")
+local SecurityLog = require("util.SecurityLog")
 
 local defaultSubmenus = {
     {label = "Files", callback = function(header, admin) MainMenu.filesMenu(header, admin) end},
@@ -12,7 +13,7 @@ local defaultSubmenus = {
     {label = "Open Door", callback = function(header, params) MainMenu.openDoor(header, params or {}) end, hasConfig = true},
     {label = "View Files", callback = function(header) centerTextBlock({"You selected: View Files"}, colors.lime); sleep(2) end},
     {label = "System Info", callback = function(header) centerTextBlock({"You selected: System Info"}, colors.lime); sleep(2) end},
-    {label = "Security Log", callback = function(header) centerTextBlock({"You selected: Security Log"}, colors.lime); sleep(2) end},
+    {label = "Security Log", callback = function(header) MainMenu.showSecurityLog(header) end},
     {label = "Change Password", callback = function(header) centerTextBlock({"You selected: Change Password"}, colors.lime); sleep(2) end},
     {label = "Vault Status", callback = function(header) centerTextBlock({"You selected: Vault Status"}, colors.lime); sleep(2) end},
     {label = "User Management", callback = function(header) centerTextBlock({"You selected: User Management"}, colors.lime); sleep(2) end},
@@ -904,6 +905,14 @@ function MainMenu.openDoor(header, params, statusBar, admin)
         doorSubmenu.sequenceRunning = false
     end
     
+    -- Log the door event to security log
+    local logAction = shouldOpen and "OPENED" or "CLOSED"
+    SecurityLog.logEvent("door_" .. (shouldOpen and "open" or "close"), {
+        action = logAction,
+        doorLabel = doorSubmenu and doorSubmenu.label or "Unknown Door",
+        side = params.side
+    })
+    
     -- Save updated menu state
     saveActiveMenus()
     
@@ -1117,6 +1126,76 @@ function MainMenu.mainMenu(header, statusBar, admin)
     end
     
     menu:handleInput()
+end
+
+function MainMenu.showSecurityLog(header)
+    MainMenu.printHeaderOnly(header)
+    
+    -- Load all events
+    local events = SecurityLog.getAllEvents()
+    
+    if #events == 0 then
+        centerTextBlock({"SECURITY LOG", "", "No events recorded."}, colors.green)
+        sleep(2)
+        return
+    end
+    
+    -- Reverse the events table to show most recent first
+    local displayEvents = {}
+    for i = #events, 1, -1 do
+        table.insert(displayEvents, events[i])
+    end
+    
+    -- Display events with scrolling
+    local eventIndex = 1
+    local _, screenHeight = term.getSize()
+    local contentHeight = screenHeight - 4  -- Account for header and status bar
+    
+    while true do
+        term.clear()
+        MainMenu.printHeaderOnly(header)
+        
+        -- Print column headers
+        term.setCursorPos(2, 4)
+        term.setTextColor(colors.white)
+        term.setBackgroundColor(colors.black)
+        term.write(string.format("%-20s %-15s %-20s %s", "TIMESTAMP", "EVENT", "DOOR", "ACTION"))
+        
+        -- Print events
+        local displayCount = math.min(contentHeight - 1, #displayEvents - eventIndex + 1)
+        for i = 0, displayCount - 1 do
+            local eventIdx = eventIndex + i
+            if eventIdx <= #displayEvents then
+                local event = displayEvents[eventIdx]
+                term.setCursorPos(2, 5 + i)
+                term.setTextColor(colors.lime)
+                term.setBackgroundColor(colors.black)
+                
+                local timestamp = SecurityLog.formatTimestamp(event.timestamp)
+                local eventType = event.eventType:upper()
+                local doorLabel = event.details.doorLabel or "UNKNOWN"
+                local action = event.details.action or "---"
+                
+                term.write(string.format("%-20s %-15s %-20s %s", timestamp, eventType, doorLabel, action))
+            end
+        end
+        
+        -- Print navigation hint
+        term.setCursorPos(2, screenHeight - 1)
+        term.setTextColor(colors.gray)
+        term.setBackgroundColor(colors.black)
+        term.write("UP/DOWN: Navigate | Q: Back")
+        
+        -- Handle input
+        local event, param1 = os.pullEvent("key")
+        if param1 == keys.up and eventIndex > 1 then
+            eventIndex = eventIndex - 1
+        elseif param1 == keys.down and eventIndex < #displayEvents then
+            eventIndex = eventIndex + 1
+        elseif param1 == keys.q then
+            break
+        end
+    end
 end
 
 return MainMenu
