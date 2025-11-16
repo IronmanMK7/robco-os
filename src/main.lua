@@ -16,6 +16,7 @@ local StatusBar = require("ui.StatusBar")
 local statusBar = StatusBar:new()
 
 local MemDumpPuzzle = require("puzzle.MemDumpPuzzle")
+local RemoteTriggerMonitor = require("util.RemoteTriggerMonitor")
 local centerTextBlock = require("ui.UI").centerTextBlock
 
 local function buildMenuOptions(menuOptions)
@@ -31,7 +32,27 @@ end
 -- Use the global admin instance created above
 
 local function main()
+    -- Load saved settings to get door submenus
+    local settings = require("config.settings")
+    settings:load()
+    
+    -- Create door submenu list to restore remote trigger state
+    local doorSubmenus = {}
+    if settings.activeMenuOptions then
+        for _, optionLabel in ipairs(settings.activeMenuOptions) do
+            if optionLabel == "Open Door" or optionLabel == "Close Door" then
+                table.insert(doorSubmenus, {label = optionLabel, doorState = "closed"})
+            end
+        end
+    end
+    
+    -- Load existing remote trigger configs and restore door state
+    RemoteTriggerMonitor.loadAndMonitorExistingTriggers(doorSubmenus)
+    
     while true do
+        -- Check for remote trigger signals during puzzle phase
+        local triggeredDoor = RemoteTriggerMonitor.monitorTriggersSync(doorSubmenus)
+        
         local puzzle = MemDumpPuzzle:new(header, admin)
         puzzle:run()
         local MainMenu = require("ui.menu.MainMenu")

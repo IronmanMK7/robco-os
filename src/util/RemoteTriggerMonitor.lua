@@ -192,6 +192,79 @@ end
 
 -- Initialize remote trigger monitoring on startup
 -- Call this from main.lua during initialization
+-- Load and monitor existing remote triggers from disk (called from main.lua)
+function RemoteTriggerMonitor.loadAndMonitorExistingTriggers(doorSubmenus)
+    local triggers = RemoteTriggerMonitor.loadConfig()
+    
+    if not triggers or #triggers == 0 then
+        return false
+    end
+    
+    -- Restore door state and parameters from loaded triggers
+    for _, trigger in ipairs(triggers) do
+        for _, submenu in ipairs(doorSubmenus or {}) do
+            if (submenu.label == "Open Door" or submenu.label == "Close Door") then
+                -- Restore the door state from saved config
+                if trigger.doorState then
+                    submenu.doorState = trigger.doorState
+                    -- Update label to match state
+                    if trigger.doorState == "open" then
+                        submenu.label = "Close Door"
+                    else
+                        submenu.label = "Open Door"
+                    end
+                end
+                
+                -- Restore params for remote trigger monitoring
+                if not submenu.params then
+                    submenu.params = {
+                        side = trigger.side,
+                        remoteTriggerColor = trigger.triggerColor,
+                        hasRemoteTrigger = true,
+                        sequence = trigger.sequence,
+                        closeSequence = trigger.closeSequence,
+                        signalCount = trigger.signalCount,
+                        colors = trigger.colors
+                    }
+                end
+                
+                -- Initialize sequence running flag
+                submenu.sequenceRunning = false
+            end
+        end
+    end
+    
+    return true
+end
+
+-- Monitor remote triggers in a tight loop (called from main.lua startup)
+function RemoteTriggerMonitor.monitorTriggersSync(doorSubmenus)
+    if not doorSubmenus or #doorSubmenus == 0 then
+        return
+    end
+    
+    -- Check for remote triggers on all door submenus
+    for _, submenu in ipairs(doorSubmenus) do
+        if (submenu.label == "Open Door" or submenu.label == "Close Door") and submenu.params then
+            local params = submenu.params
+            if params.hasRemoteTrigger and params.remoteTriggerColor and params.side then
+                -- Check if the remote trigger signal is active
+                local colorValue = colors[params.remoteTriggerColor]
+                local currentState = redstone.getBundledOutput(params.side)
+                local isSignalActive = (colors.test(currentState, colorValue) == true)
+                
+                -- If signal is active and sequence is not already running, mark for execution
+                if isSignalActive and not submenu.sequenceRunning then
+                    submenu.sequenceRunning = true
+                    return submenu -- Return the door submenu that was triggered
+                end
+            end
+        end
+    end
+    
+    return nil
+end
+
 function RemoteTriggerMonitor.initializeOnStartup(activeSubmenus)
     -- Check if we have active triggers
     if RemoteTriggerMonitor.hasActiveTriggers(activeSubmenus) then

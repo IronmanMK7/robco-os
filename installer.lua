@@ -27,7 +27,6 @@ local fallbackFiles = {
     "uninstaller.lua",
     "version.lua",
     "README.md",
-    ".github/copilot-instructions.md"
 }
 
 -- Recursively discovers all files from GitHub API (excludes installer.lua)
