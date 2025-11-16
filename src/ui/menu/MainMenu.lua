@@ -4,6 +4,7 @@ local Menu = require("ui.menu.Menu")
 local UI = require("ui.UI")
 local centerTextBlock = UI.centerTextBlock
 local settings = require("config.settings")
+local RemoteTriggerMonitor = require("util.RemoteTriggerMonitor")
 
 local defaultSubmenus = {
     {label = "Files", callback = function(header, admin) MainMenu.filesMenu(header, admin) end},
@@ -899,6 +900,9 @@ function MainMenu.removeSubmenuMenu(header, statusBar, admin)
 end
 
 function MainMenu.mainMenu(header, statusBar, admin)
+    -- Initialize remote trigger background monitor on each menu entry
+    RemoteTriggerMonitor.initializeOnStartup(activeSubmenus)
+    
     local isAdmin = admin:isAdminUser()
     local menuOptions = {
         {label = "[+] Create Submenu", enabled = isAdmin, callback = function()
@@ -940,6 +944,84 @@ function MainMenu.mainMenu(header, statusBar, admin)
     local Menu = require("ui.menu.Menu")
     local menu = Menu:new(menuOpts, "MAIN MENU", header, admin:isAdminUser())
     menu.adminActive = admin:isAdminUser()
+    
+    -- Set up remote trigger monitoring
+    -- Store the original handleInput for wrapping
+    local originalHandleInput = menu.handleInput
+    function menu:handleInput()
+        local startTime = os.clock()
+        local visibleOptions = {}
+        local backIndex = nil
+        for i, option in ipairs(self.options) do
+            if option.enabled and option.label ~= "Back" then
+                table.insert(visibleOptions, option)
+            elseif option.label == "Back" then
+                backIndex = i
+            end
+        end
+        local leftMargin = 2
+        local totalOptions = #visibleOptions + (backIndex and 1 or 0)
+        while self.active do
+            self:draw()
+            
+            -- Check for remote triggers on all door submenus
+            for _, submenu in ipairs(activeSubmenus) do
+                if (submenu.label == "Open Door" or submenu.label == "Close Door") and submenu.params then
+                    local params = submenu.params
+                    if params.hasRemoteTrigger and params.remoteTriggerColor and params.side then
+                        -- Check if the remote trigger signal is active
+                        local colorValue = colors["" .. params.remoteTriggerColor .. ""]
+                        local currentState = redstone.getBundledOutput("" .. params.side .. "")
+                        local isSignalActive = (colors.test(currentState, colorValue) == true)
+                        
+                        -- If signal is active and sequence is not already running, execute it
+                        if isSignalActive and not submenu.sequenceRunning then
+                            -- Execute the door sequence
+                            submenu.sequenceRunning = true
+                            MainMenu.openDoor(header, params, statusBar, admin)
+                            return -- Exit menu loop after executing remote trigger
+                        end
+                    end
+                end
+            end
+            
+            -- Use a timeout on pullEvent to check triggers periodically (every 0.1 seconds)
+            local event, p1, p2, p3 = os.pullEventTimeout(0.1)
+            if os.clock() - startTime > self.timeout then
+                self:exit()
+                break
+            end
+            
+            if event then
+                if event == "key" then
+                    if p1 == keys.up and self.selected > 1 then
+                        self.selected = self.selected - 1
+                    elseif p1 == keys.down and self.selected < totalOptions then
+                        self.selected = self.selected + 1
+                    elseif p1 == keys.enter then
+                        local selectedOption = self.selected <= #visibleOptions and visibleOptions[self.selected] or self.options[backIndex]
+                        if selectedOption and selectedOption.callback then
+                            self.active = false
+                            selectedOption.callback()
+                        end
+                    end
+                elseif event == "mouse_click" then
+                    local clickedY = p2
+                    local menuStartY = self.y + 1
+                    local clickIndex = clickedY - menuStartY + 1
+                    if clickIndex > 0 and clickIndex <= totalOptions then
+                        self.selected = clickIndex
+                        local selectedOption = clickIndex <= #visibleOptions and visibleOptions[clickIndex] or self.options[backIndex]
+                        if selectedOption and selectedOption.callback then
+                            self.active = false
+                            selectedOption.callback()
+                        end
+                    end
+                end
+            end
+        end
+    end
+    
     menu:handleInput()
 end
 
