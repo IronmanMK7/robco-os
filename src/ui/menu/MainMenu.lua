@@ -13,7 +13,7 @@ local defaultSubmenus = {
     {label = "Open Door", callback = function(header, params) MainMenu.openDoor(header, params or {}) end, hasConfig = true},
     {label = "View Files", callback = function(header) centerTextBlock({"You selected: View Files"}, colors.lime); sleep(2) end},
     {label = "System Info", callback = function(header) centerTextBlock({"You selected: System Info"}, colors.lime); sleep(2) end},
-    {label = "Security Log", callback = function(header) MainMenu.showSecurityLog(header) end},
+    {label = "Security Log", callback = function(header) if MainMenu.showSecurityLog then MainMenu.showSecurityLog(header) end end},
     {label = "Change Password", callback = function(header) centerTextBlock({"You selected: Change Password"}, colors.lime); sleep(2) end},
     {label = "Vault Status", callback = function(header) centerTextBlock({"You selected: Vault Status"}, colors.lime); sleep(2) end},
     {label = "User Management", callback = function(header) centerTextBlock({"You selected: User Management"}, colors.lime); sleep(2) end},
