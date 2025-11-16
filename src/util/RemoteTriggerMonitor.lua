@@ -77,6 +77,49 @@ function RemoteTriggerMonitor.loadConfig()
     return triggers
 end
 
+-- Migrate existing "Open Door" configurations from activeSubmenus to trigger config file
+-- Called on startup if no trigger config file exists but activeSubmenus has remote triggers
+function RemoteTriggerMonitor.migrateExistingTriggers(activeSubmenus)
+    -- Only migrate if config file doesn't already exist
+    if fs.exists(CONFIG_FILE) then
+        return false
+    end
+    
+    local triggers = {}
+    local hasMigrated = false
+    
+    for _, submenu in ipairs(activeSubmenus or {}) do
+        if (submenu.label == "Open Door" or submenu.label == "Close Door") and submenu.params then
+            local params = submenu.params
+            if params.hasRemoteTrigger and params.remoteTriggerColor and params.side then
+                table.insert(triggers, {
+                    side = params.side,
+                    triggerColor = params.remoteTriggerColor,
+                    doorLabel = submenu.label,
+                    doorState = submenu.doorState or "closed",
+                    sequence = params.sequence,
+                    closeSequence = params.closeSequence,
+                    signalCount = params.signalCount,
+                    colors = params.colors
+                })
+                hasMigrated = true
+            end
+        end
+    end
+    
+    -- If we found any remote triggers to migrate, save them to the config file
+    if hasMigrated and #triggers > 0 then
+        local file = fs.open(CONFIG_FILE, "w")
+        if file then
+            file.writeLine(textutils.serialize(triggers))
+            file.close()
+            return true
+        end
+    end
+    
+    return false
+end
+
 -- Start background monitoring process
 function RemoteTriggerMonitor.startBackgroundMonitor()
     -- Create a small monitoring script
@@ -194,6 +237,9 @@ end
 -- Call this from main.lua during initialization
 -- Load and monitor existing remote triggers from disk (called from main.lua)
 function RemoteTriggerMonitor.loadAndMonitorExistingTriggers(doorSubmenus)
+    -- First, try to migrate any existing triggers from activeSubmenus (settings) if not already migrated
+    RemoteTriggerMonitor.migrateExistingTriggers(doorSubmenus)
+    
     local triggers = RemoteTriggerMonitor.loadConfig()
     
     if not triggers or #triggers == 0 then
