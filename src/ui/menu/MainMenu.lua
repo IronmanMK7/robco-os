@@ -44,6 +44,9 @@ local function saveActiveMenus()
         table.insert(settings.activeMenuOptions, active.label)
     end
     settings:save()
+    
+    -- Also save remote trigger configurations to persist across restarts
+    RemoteTriggerMonitor.saveConfig(activeSubmenus)
 end
 
 function MainMenu:new(options, headerInstance, statusBar, adminActive)
