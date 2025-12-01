@@ -5,7 +5,8 @@ local UI = require("ui.UI")
 local centerTextBlock = UI.centerTextBlock
 local settings = require("config.settings")
 local RemoteTriggerMonitor = require("util.RemoteTriggerMonitor")
-local SecurityLog = require("util.SecurityLog")
+local SecurityLog = {}
+pcall(function() SecurityLog = require("util.SecurityLog") end)
 
 local defaultSubmenus = {
     {label = "Files", callback = function(header, admin) MainMenu.filesMenu(header, admin) end},
