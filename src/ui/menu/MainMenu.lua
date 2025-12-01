@@ -1,6 +1,6 @@
 -- MainMenu subclass of Menu
 local MainMenu = {}
-local Menu = require("Menu")
+local Menu = require("ui.menu.Menu")
 local UI = require("ui.UI")
 local centerTextBlock = UI.centerTextBlock
 local settings = require("config.settings")
